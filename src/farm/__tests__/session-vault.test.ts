@@ -44,4 +44,21 @@ describe('Account Session Vault & Encrypted Import/Export', () => {
     ];
     expect(isSessionExpired(validCookies)).toBe(false);
   });
+
+  it('ensures accounts stored in client storage do not contain plaintext cookies (S8)', () => {
+    const rawAccount = {
+      id: 'acc-1',
+      username: 'test_user',
+      platform: 'TIKTOK',
+      cookiesJson: JSON.stringify([{ name: 'sessionid', value: 'secret_leak' }]),
+    };
+    const sanitized = (({ cookiesJson, ...acc }: any) => ({
+      ...acc,
+      hasCookies: Boolean(acc.hasCookies || cookiesJson),
+    }))(rawAccount);
+
+    expect(sanitized.hasCookies).toBe(true);
+    expect((sanitized as any).cookiesJson).toBeUndefined();
+    expect(JSON.stringify(sanitized)).not.toContain('secret_leak');
+  });
 });

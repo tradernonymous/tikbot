@@ -281,7 +281,7 @@ export default function AccountsPage() {
                           <button
                             onClick={() => {
                               setSessionModalAccount(acc);
-                              setSessionInput(acc.cookiesJson || '');
+                              setSessionInput('');
                             }}
                             className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 text-[11px] font-mono transition-colors"
                             title="Attach or edit authenticated session cookies"
@@ -521,7 +521,7 @@ export default function AccountsPage() {
                 <button
                   onClick={() => {
                     setSessionModalAccount(inspectedAccount);
-                    setSessionInput(inspectedAccount.cookiesJson || '');
+                    setSessionInput('');
                     setInspectedAccount(null);
                   }}
                   className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 text-[11px] font-mono flex items-center gap-1 transition-colors"

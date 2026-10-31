@@ -18,7 +18,6 @@ export interface FarmAccount {
   warmupDay: number;
   sessionCipher?: string;
   hasCookies?: boolean;
-  cookiesJson?: string;
   createdAt: string;
 }
 
@@ -52,7 +51,7 @@ export interface ActiveFarmTask {
   targetUrl: string;
   executed: number;
   target: number;
-  status: 'RUNNING' | 'QUEUED' | 'COMPLETED' | 'PAUSED';
+  status: 'RUNNING' | 'QUEUED' | 'COMPLETED' | 'PAUSED' | 'FAILED';
   assignedNodes: number;
   startedAt: string;
   commentNiche?: string;
@@ -154,6 +153,7 @@ interface OperationsContextType {
     externalOrderId?: string;
     executionMode?: 'INTERNAL_FARM' | 'SMM_PROVIDER';
     costFormatted?: string;
+    status?: 'RUNNING' | 'QUEUED' | 'COMPLETED' | 'PAUSED' | 'FAILED';
   }) => void;
   pauseTask: (taskId: string) => void;
   resumeTask: (taskId: string) => void;
@@ -439,7 +439,14 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed.farmTasks) && parsed.farmTasks.length > 0) setFarmTasks(parsed.farmTasks);
-        if (Array.isArray(parsed.accounts) && parsed.accounts.length > 0) setAccounts(parsed.accounts);
+        if (Array.isArray(parsed.accounts) && parsed.accounts.length > 0) {
+          // Sanitize accounts: never keep plaintext cookies in client state (S8)
+          const sanitizedAccounts = parsed.accounts.map(({ cookiesJson, ...acc }: any) => ({
+            ...acc,
+            hasCookies: Boolean(acc.hasCookies || cookiesJson),
+          }));
+          setAccounts(sanitizedAccounts);
+        }
         if (Array.isArray(parsed.proxies) && parsed.proxies.length > 0) setProxies(parsed.proxies);
         if (Array.isArray(parsed.campaigns) && parsed.campaigns.length > 0) setCampaigns(parsed.campaigns);
       }
@@ -451,11 +458,13 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
   // State Persistence: Sync changes back to localStorage
   useEffect(() => {
     try {
+      // Never persist cookiesJson to localStorage (S8)
+      const sanitizedAccounts = accounts.map(({ cookiesJson, ...acc }: any) => acc);
       localStorage.setItem(
         LOCAL_STORAGE_KEY,
         JSON.stringify({
           farmTasks,
-          accounts,
+          accounts: sanitizedAccounts,
           proxies,
           campaigns,
         })
@@ -488,9 +497,6 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
 
       if (activeSmmTasks.length === 0) return;
 
-      const savedUrl = localStorage.getItem('TIKBOT_SMM_URL') || undefined;
-      const savedKey = localStorage.getItem('TIKBOT_SMM_KEY') || undefined;
-
       for (const task of activeSmmTasks) {
         try {
           const res = await fetch('/api/v1/smm', {
@@ -498,8 +504,6 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               action: 'status',
-              apiUrl: savedUrl,
-              apiKey: savedKey,
               orderId: task.externalOrderId,
             }),
           });
@@ -607,6 +611,22 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     const newId = `acc-${Date.now().toString().slice(-4)}`;
     const hasCookies = Boolean(cookiesJson && cookiesJson.trim().length > 5);
 
+    // Securely encrypt and store session cookies server-side (S8)
+    if (hasCookies && cookiesJson) {
+      fetch('/api/v1/accounts/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: newId,
+          username: cleanUser,
+          platform,
+          cookiesJson: cookiesJson.trim(),
+        }),
+      }).catch((err) => {
+        console.error('[OperationsContext] Failed to securely upload session:', err);
+      });
+    }
+
     const newAcc: FarmAccount = {
       id: newId,
       username: cleanUser,
@@ -618,8 +638,7 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
       proxyId: healthyProxy ? healthyProxy.id : null,
       warmupDay: 1,
       hasCookies,
-      cookiesJson: hasCookies ? cookiesJson : undefined,
-      sessionCipher: `vault_aes256_enc_${newId}`,
+      sessionCipher: hasCookies ? `vault_aes256_enc_${newId}` : undefined,
       createdAt: 'Just now',
     };
 
@@ -628,20 +647,34 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
       'REGISTER_FARM_ACCOUNT',
       `@${cleanUser}`,
       'SUCCESS',
-      `Account @${cleanUser} registered (${hasCookies ? 'Cookies Vault Attached' : 'Unauthenticated'}) & bound to ${healthyProxy?.host || 'unbound'}`
+      `Account @${cleanUser} registered (${hasCookies ? 'Encrypted Session Vault Attached' : 'Unauthenticated'}) & bound to ${healthyProxy?.host || 'unbound'}`
     );
   };
 
   const updateAccountCookies = (accountId: string, cookiesJson: string) => {
     const hasCookies = Boolean(cookiesJson && cookiesJson.trim().length > 5);
+
+    // Securely upload and encrypt session server-side (S8)
+    if (hasCookies && cookiesJson) {
+      fetch('/api/v1/accounts/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId,
+          cookiesJson: cookiesJson.trim(),
+        }),
+      }).catch((err) => {
+        console.error('[OperationsContext] Failed to securely update session:', err);
+      });
+    }
+
     setAccounts((prev) =>
       prev.map((acc) => {
         if (acc.id === accountId) {
           return {
             ...acc,
             hasCookies,
-            cookiesJson: hasCookies ? cookiesJson : undefined,
-            sessionCipher: `vault_aes256_enc_${acc.id}`,
+            sessionCipher: hasCookies ? `vault_aes256_enc_${acc.id}` : undefined,
           };
         }
         return acc;
@@ -775,7 +808,9 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     externalOrderId?: string;
     executionMode?: 'INTERNAL_FARM' | 'SMM_PROVIDER';
     costFormatted?: string;
+    status?: 'RUNNING' | 'QUEUED' | 'COMPLETED' | 'PAUSED' | 'FAILED';
   }) => {
+    const taskStatus = data.status || 'RUNNING';
     const newTask: ActiveFarmTask = {
       id: `task-${Date.now().toString().slice(-4)}`,
       serviceName: data.serviceName,
@@ -783,8 +818,8 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
       targetUrl: data.targetUrl,
       executed: 0,
       target: data.targetCount,
-      status: 'RUNNING',
-      assignedNodes: Math.min(Math.ceil(data.targetCount / 10), accounts.length || 5),
+      status: taskStatus,
+      assignedNodes: taskStatus === 'FAILED' ? 0 : Math.min(Math.ceil(data.targetCount / 10), accounts.length || 5),
       startedAt: 'Just now',
       commentNiche: data.commentNiche,
       externalOrderId: data.externalOrderId,
@@ -792,7 +827,12 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
       costFormatted: data.costFormatted || (data.executionMode === 'INTERNAL_FARM' ? 'FREE (0.00)' : 'RM 0.00'),
     };
     setFarmTasks((prev) => [newTask, ...prev]);
-    recordAudit('DISPATCH_FARM_TASK', data.serviceName, 'SUCCESS', `Dispatched ${data.serviceName} (${data.targetCount} actions${data.executionMode ? ` via ${data.executionMode}` : ''}${data.costFormatted ? ` • ${data.costFormatted}` : ''})`);
+    recordAudit(
+      'DISPATCH_FARM_TASK',
+      data.serviceName,
+      taskStatus === 'FAILED' ? 'WARNING' : 'SUCCESS',
+      `Dispatched ${data.serviceName} (${data.targetCount} actions${data.executionMode ? ` via ${data.executionMode}` : ''}${data.costFormatted ? ` • ${data.costFormatted}` : ''} [${taskStatus}])`
+    );
   };
 
   const pauseTask = (taskId: string) => {
