@@ -1,48 +1,57 @@
 import React from 'react';
 import Link from 'next/link';
-import { Inbox } from 'lucide-react';
+import { LucideIcon, Inbox } from 'lucide-react';
 
 export interface EmptyStateProps {
+  icon?: LucideIcon;
   title: string;
   description: string;
-  actionText?: string;
+  actionLabel?: string;
   actionHref?: string;
   onAction?: () => void;
-  icon?: React.ReactNode;
+  className?: string;
 }
 
 export function EmptyState({
+  icon: Icon = Inbox,
   title,
   description,
-  actionText,
+  actionLabel,
   actionHref,
   onAction,
-  icon,
+  className = '',
 }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center p-8 rounded-xl border border-dashed border-slate-800 bg-slate-950/40 text-center">
-      <div className="p-3 rounded-full bg-slate-900 border border-slate-800 text-slate-400 mb-3">
-        {icon || <Inbox className="w-6 h-6 text-slate-400" />}
+    <div
+      role="region"
+      aria-label={title}
+      className={`flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-800 bg-slate-900/30 p-8 text-center sm:p-12 ${className}`}
+    >
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-800/80 text-cyan-400">
+        <Icon className="h-6 w-6" aria-hidden="true" />
       </div>
-      <h3 className="text-sm font-semibold text-white">{title}</h3>
-      <p className="text-xs text-slate-400 max-w-sm mt-1">{description}</p>
-      {actionText && (
-        <div className="mt-4">
+
+      <h3 className="mt-4 text-sm font-semibold tracking-wide text-slate-100">{title}</h3>
+      <p className="mt-2 max-w-sm text-xs text-slate-400">{description}</p>
+
+      {actionLabel && (
+        <div className="mt-6">
           {actionHref ? (
             <Link
               href={actionHref}
-              className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-sm transition-all"
+              className="inline-flex items-center rounded-lg bg-cyan-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-400"
             >
-              {actionText}
+              {actionLabel}
             </Link>
-          ) : onAction ? (
+          ) : (
             <button
               onClick={onAction}
-              className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-sm transition-all"
+              type="button"
+              className="inline-flex items-center rounded-lg bg-cyan-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-400"
             >
-              {actionText}
+              {actionLabel}
             </button>
-          ) : null}
+          )}
         </div>
       )}
     </div>

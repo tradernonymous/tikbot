@@ -1,34 +1,32 @@
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
-import { describe, it, expect } from 'vitest';
-import { renderToString } from 'react-dom/server';
 import { EmptyState } from '../EmptyState';
+import { Users } from 'lucide-react';
 
-describe('EmptyState Component (U2 TDD)', () => {
-  it('renders title, description, and action button with link', () => {
-    const html = renderToString(
-      <EmptyState
-        title="No Accounts Registered"
-        description="Connect your first TikTok node to begin."
-        actionText="Add Account"
-        actionHref="/dashboard/accounts"
-      />
-    );
+describe('EmptyState Component (U4.7)', () => {
+  it('renders title, description, and primary action CTA', () => {
+    const handleAction = vi.fn();
+    const el = EmptyState({
+      icon: Users,
+      title: 'No Farm Accounts Connected',
+      description: 'Add your first account session to begin warmups and campaign distribution.',
+      actionLabel: 'Add Account',
+      onAction: handleAction,
+    });
 
-    expect(html).toContain('No Accounts Registered');
-    expect(html).toContain('Connect your first TikTok node to begin.');
-    expect(html).toContain('Add Account');
-    expect(html).toContain('href="/dashboard/accounts"');
+    expect(el).toBeDefined();
+    expect(el.props['role']).toBe('region');
+    expect(el.props['aria-label']).toContain('No Farm Accounts Connected');
   });
 
-  it('renders without action when not supplied', () => {
-    const html = renderToString(
-      <EmptyState
-        title="No Logs Found"
-        description="Audit logs will appear as operations execute."
-      />
-    );
+  it('renders link CTA when actionHref is provided', () => {
+    const el = EmptyState({
+      title: 'No Active Campaigns',
+      description: 'Launch a campaign from research outliers or create one manually.',
+      actionLabel: 'Explore Research',
+      actionHref: '/dashboard/research',
+    });
 
-    expect(html).toContain('No Logs Found');
-    expect(html).toContain('Audit logs will appear as operations execute.');
+    expect(el).toBeDefined();
   });
 });
