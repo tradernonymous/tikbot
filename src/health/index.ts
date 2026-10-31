@@ -17,6 +17,13 @@ export interface ReadinessReport {
   timestamp: Date;
   components: {
     database: ComponentStatus;
+    queue?: {
+      pendingJobs: number;
+    };
+    worker?: {
+      lastHeartbeat: string | null;
+      status: 'UP' | 'DOWN' | 'IDLE';
+    };
     redis?: ComponentStatus;
     killSwitch: {
       active: boolean;
@@ -27,6 +34,8 @@ export interface ReadinessReport {
 export interface HealthDependencies {
   checkDatabase: () => Promise<boolean>;
   checkRedis?: () => Promise<boolean>;
+  getQueueDepth?: () => Promise<number>;
+  getWorkerHeartbeat?: () => Promise<string | null>;
   isKillSwitchActive: () => boolean;
 }
 
@@ -82,11 +91,40 @@ export async function checkReadiness(deps: HealthDependencies): Promise<Readines
     }
   }
 
+  let queueStatus: { pendingJobs: number } | undefined;
+  if (deps.getQueueDepth) {
+    try {
+      const pendingJobs = await deps.getQueueDepth();
+      queueStatus = { pendingJobs };
+    } catch {
+      queueStatus = { pendingJobs: 0 };
+    }
+  }
+
+  let workerStatus: { lastHeartbeat: string | null; status: 'UP' | 'DOWN' | 'IDLE' } | undefined;
+  if (deps.getWorkerHeartbeat) {
+    try {
+      const heartbeat = await deps.getWorkerHeartbeat();
+      if (!heartbeat) {
+        workerStatus = { lastHeartbeat: null, status: 'IDLE' };
+      } else {
+        const hbTime = new Date(heartbeat).getTime();
+        const diffSecs = (Date.now() - hbTime) / 1000;
+        const status = diffSecs < 120 ? 'UP' : 'DOWN';
+        workerStatus = { lastHeartbeat: heartbeat, status };
+      }
+    } catch {
+      workerStatus = { lastHeartbeat: null, status: 'DOWN' };
+    }
+  }
+
   return {
     status: overallStatus,
     timestamp: new Date(),
     components: {
       database: dbStatus,
+      ...(queueStatus ? { queue: queueStatus } : {}),
+      ...(workerStatus ? { worker: workerStatus } : {}),
       ...(redisStatus ? { redis: redisStatus } : {}),
       killSwitch: {
         active: isKillSwitchActive,
