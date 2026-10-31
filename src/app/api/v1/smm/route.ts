@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireSession, handleSessionRefresh } from '@/security/auth';
 import { SMMProviderAdapter } from '@/panel/smm-provider';
 import { getSystemSetting } from '@/storage/system-settings';
+import { globalSMMIdempotency } from '@/panel/smm-idempotency';
 
 const ALLOWED_HOSTS = [
   'supplierfollower.com',
@@ -20,6 +21,8 @@ const servicesSchema = z.object({
 
 const orderSchema = z.object({
   action: z.literal('order'),
+  campaignId: z.string().optional(),
+  idempotencyKey: z.string().optional(),
   service: z.union([z.string(), z.number()]).transform(String).pipe(z.string().min(1, 'service is required')),
   link: z.string().min(1, 'link is required'),
   quantity: z.coerce.number().positive('quantity must be positive'),
@@ -131,12 +134,41 @@ export async function POST(req: NextRequest) {
       const balance = await adapter.getBalance();
       response = NextResponse.json({ success: true, balance });
     } else if (validatedData.action === 'order') {
-      const order = await adapter.createExternalOrder({
-        service: validatedData.service,
-        link: validatedData.link,
-        quantity: validatedData.quantity,
-      });
-      response = NextResponse.json({ success: true, order });
+      const dedupeKey =
+        validatedData.idempotencyKey ||
+        globalSMMIdempotency.generateKey({
+          campaignId: validatedData.campaignId,
+          service: validatedData.service,
+          link: validatedData.link,
+          quantity: validatedData.quantity,
+        });
+
+      const lockCheck = await globalSMMIdempotency.checkAndLock(dedupeKey);
+      if (lockCheck.isDuplicate) {
+        response = NextResponse.json({
+          success: true,
+          order: lockCheck.existingResult,
+          deduplicated: true,
+        });
+      } else if (lockCheck.inFlight) {
+        return NextResponse.json(
+          { success: false, error: 'Order is currently processing, duplicate request blocked' },
+          { status: 409 }
+        );
+      } else {
+        try {
+          const order = await adapter.createExternalOrder({
+            service: validatedData.service,
+            link: validatedData.link,
+            quantity: validatedData.quantity,
+          });
+          await globalSMMIdempotency.recordSuccess(dedupeKey, order);
+          response = NextResponse.json({ success: true, order });
+        } catch (orderErr) {
+          await globalSMMIdempotency.releaseLock(dedupeKey);
+          throw orderErr;
+        }
+      }
     } else if (validatedData.action === 'status') {
       const status = await adapter.getOrderStatus(validatedData.orderId);
       response = NextResponse.json({ success: true, status });

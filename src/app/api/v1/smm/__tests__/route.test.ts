@@ -4,6 +4,11 @@ import { NextRequest } from 'next/server';
 import { createSessionToken } from '@/security/auth';
 import { SMMProviderAdapter } from '@/panel/smm-provider';
 
+vi.mock('@/storage/system-settings', () => ({
+  getSystemSetting: vi.fn().mockResolvedValue(null),
+  setSystemSetting: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('SMM Provider Route Hardening (S5, S10, B7)', () => {
   const secret = 'super-secret-session-key-minimum-32-chars-long';
   let validToken: string;
@@ -172,5 +177,40 @@ describe('SMM Provider Route Hardening (S5, S10, B7)', () => {
     const setCookie = res.headers.get('set-cookie');
     expect(setCookie).toBeTruthy();
     expect(setCookie).toContain('tikbot_session=');
+  });
+
+  it('deduplicates identical order submissions within window to prevent double charges (P9)', async () => {
+    const createOrderSpy = vi.spyOn(SMMProviderAdapter.prototype, 'createExternalOrder').mockResolvedValue({
+      externalOrderId: 'ext-dedupe-1',
+      status: 'PENDING',
+      charge: 1.5,
+      currency: 'USD',
+      startCount: 0,
+      remains: 1000,
+    });
+
+    const orderPayload = {
+      action: 'order',
+      campaignId: 'camp-idemp-1',
+      service: 5,
+      link: 'https://tiktok.com/@creator/video/999',
+      quantity: 500,
+    };
+
+    // First call
+    const res1 = await POST(makeRequest(orderPayload, validToken));
+    expect(res1.status).toBe(200);
+    const data1 = await res1.json();
+    expect(data1.order.externalOrderId).toBe('ext-dedupe-1');
+    expect(createOrderSpy).toHaveBeenCalledTimes(1);
+
+    // Immediate second call with identical parameters
+    const res2 = await POST(makeRequest(orderPayload, validToken));
+    expect(res2.status).toBe(200);
+    const data2 = await res2.json();
+    expect(data2.deduplicated).toBe(true);
+    expect(data2.order.externalOrderId).toBe('ext-dedupe-1');
+    // External API must NOT have been called a second time
+    expect(createOrderSpy).toHaveBeenCalledTimes(1);
   });
 });
