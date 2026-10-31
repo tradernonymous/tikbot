@@ -22,6 +22,10 @@ export interface DataTableProps<T> {
   selectedIds?: Set<string>;
   onSelectRow?: (id: string, selected: boolean) => void;
   onSelectAll?: (selected: boolean) => void;
+  page?: number;
+  pageSize?: number;
+  totalCount?: number;
+  onPageChange?: (page: number) => void;
   emptyTitle?: string;
   emptyDescription?: string;
   className?: string;
@@ -37,6 +41,10 @@ export function DataTable<T extends Record<string, any>>({
   selectedIds,
   onSelectRow,
   onSelectAll,
+  page = 1,
+  pageSize,
+  totalCount,
+  onPageChange,
   emptyTitle = 'No records found',
   emptyDescription = 'There are currently no items matching the criteria.',
   className = '',
@@ -52,6 +60,8 @@ export function DataTable<T extends Record<string, any>>({
   }
 
   const allSelected = selectedIds && data.length > 0 && data.every((item, i) => selectedIds.has(keyExtractor(item, i)));
+  const totalItems = totalCount ?? data.length;
+  const totalPages = pageSize ? Math.max(1, Math.ceil(totalItems / pageSize)) : 1;
 
   return (
     <div
@@ -60,7 +70,7 @@ export function DataTable<T extends Record<string, any>>({
       className={`overflow-hidden rounded-xl border border-slate-800 bg-[#0f172a] shadow-sm ${className}`}
     >
       <div className="flex items-center justify-between border-b border-slate-800/80 px-4 py-3 text-xs text-slate-400">
-        <span>Showing {data.length} records</span>
+        <span>Showing {pageSize ? `${Math.min((page - 1) * pageSize + 1, totalItems)}-${Math.min(page * pageSize, totalItems)} of ${totalItems}` : `${data.length} records`}</span>
         {selectedIds && selectedIds.size > 0 && (
           <span className="font-medium text-cyan-400">{selectedIds.size} selected</span>
         )}
@@ -149,6 +159,35 @@ export function DataTable<T extends Record<string, any>>({
           </tbody>
         </table>
       </div>
+
+      {pageSize && totalPages > 1 && (
+        <nav
+          aria-label="Pagination Navigation"
+          className="flex items-center justify-between border-t border-slate-800/80 px-4 py-3 text-xs"
+        >
+          <span className="text-slate-400">
+            {`Page ${page} of ${totalPages}`}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => onPageChange?.(page - 1)}
+              className="rounded border border-slate-800 bg-slate-900 px-2.5 py-1 text-slate-300 hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              onClick={() => onPageChange?.(page + 1)}
+              className="rounded border border-slate-800 bg-slate-900 px-2.5 py-1 text-slate-300 hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
+        </nav>
+      )}
     </div>
   );
 }

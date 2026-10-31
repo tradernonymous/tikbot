@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
+import { renderToString } from 'react-dom/server';
 import { DataTable, ColumnDef } from '../DataTable';
 
 interface TestRow {
@@ -9,7 +10,7 @@ interface TestRow {
   count: number;
 }
 
-describe('DataTable Component (U4.6)', () => {
+describe('DataTable Component (U4.6, P5.3)', () => {
   const columns: ColumnDef<TestRow>[] = [
     { key: 'name', header: 'Account Name', sortable: true },
     { key: 'status', header: 'Status', sortable: true },
@@ -56,5 +57,23 @@ describe('DataTable Component (U4.6)', () => {
     });
 
     expect(el).toBeDefined();
+  });
+
+  it('renders pagination controls and info when pageSize is configured (P5.3)', () => {
+    const onPageChange = vi.fn();
+    const html = renderToString(
+      <DataTable
+        columns={columns}
+        data={data}
+        keyExtractor={(item) => item.id}
+        page={1}
+        pageSize={1}
+        totalCount={10}
+        onPageChange={onPageChange}
+      />
+    );
+
+    expect(html).toContain('aria-label="Pagination Navigation"');
+    expect(html).toContain('Page 1 of 10');
   });
 });
