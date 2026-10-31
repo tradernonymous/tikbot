@@ -22,6 +22,8 @@ export interface ViewRunOptions {
    * though limited to 1 counted view per unique account).
    */
   identityMode?: 'unique-guest' | 'authenticated';
+  settleDelayMs?: number;
+  jitterPauseMs?: number;
   onProgress?: (completed: number, target: number, dwellSecs: number) => void;
 }
 
@@ -40,7 +42,7 @@ const SINGLE_ACCOUNT_COOKIE_NAMES = new Set([
   'ttwid', // stripped so TikTok issues a fresh visitor ttwid per browser instance
 ]);
 
-function loadSavedCookies(customPath?: string): any[] {
+export function loadSavedCookies(customPath?: string): any[] {
   const candidates = [
     customPath,
     path.join(process.cwd(), 'tiktok_cookies.json'),
@@ -63,7 +65,7 @@ function loadSavedCookies(customPath?: string): any[] {
   return [];
 }
 
-function buildSessionCookies(baseCookies: any[], mode: 'unique-guest' | 'authenticated'): any[] {
+export function buildSessionCookies(baseCookies: any[], mode: 'unique-guest' | 'authenticated'): any[] {
   if (mode === 'authenticated') {
     return baseCookies;
   }
@@ -158,8 +160,11 @@ export async function runStealthViewSession(options: ViewRunOptions): Promise<{
           timeout: 35000,
         });
 
-        // Wait 4s for TikTok SPA hydration redirects to settle
-        await new Promise((r) => setTimeout(r, 4000));
+        // Wait for TikTok SPA hydration redirects to settle
+        const settleDelay = options.settleDelayMs ?? 4000;
+        if (settleDelay > 0) {
+          await new Promise((r) => setTimeout(r, settleDelay));
+        }
 
         // Random dwell time for algorithmic view retention
         const dwell = Math.floor(Math.random() * (maxDwell - minDwell + 1)) + minDwell;
@@ -223,9 +228,11 @@ export async function runStealthViewSession(options: ViewRunOptions): Promise<{
 
       // Delay between successive views if not last
       if (i < targetViews) {
-        const waitJitter = Math.floor(Math.random() * 4) + 2; // 2-5s pause
-        console.log(`[StealthRunner] Jitter pause ${waitJitter}s before next session...`);
-        await new Promise((r) => setTimeout(r, waitJitter * 1000));
+        const jitterMs = options.jitterPauseMs !== undefined ? options.jitterPauseMs : (Math.floor(Math.random() * 4) + 2) * 1000;
+        if (jitterMs > 0) {
+          console.log(`[StealthRunner] Jitter pause ${jitterMs}ms before next session...`);
+          await new Promise((r) => setTimeout(r, jitterMs));
+        }
       }
     }
   } finally {

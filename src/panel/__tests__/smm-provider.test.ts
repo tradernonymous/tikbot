@@ -110,4 +110,82 @@ describe('SMMProviderAdapter', () => {
     });
     expect(defaultAdapter).toBeDefined();
   });
+
+  it('fetches services list and throws on provider error', async () => {
+    const mockFetcher = vi.fn().mockResolvedValue([
+      { service: '1', name: 'TikTok Views' },
+    ]);
+    const adapter = new SMMProviderAdapter(config, mockFetcher);
+    const services = await adapter.getServices();
+    expect(services).toHaveLength(1);
+
+    mockFetcher.mockResolvedValueOnce({ error: 'Service unavailable' });
+    await expect(adapter.getServices()).rejects.toThrow(/Service unavailable/);
+
+    mockFetcher.mockResolvedValueOnce('not an array');
+    const emptyServices = await adapter.getServices();
+    expect(emptyServices).toEqual([]);
+  });
+
+  describe('defaultSMMFetcher', () => {
+    const originalFetch = global.fetch;
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    it('successfully posts form data and returns parsed JSON', async () => {
+      const { defaultSMMFetcher } = await import('../smm-provider');
+      global.fetch = vi.fn().mockResolvedValue({
+        status: 200,
+        text: vi.fn().mockResolvedValue(JSON.stringify({ balance: '50.00', currency: 'USD' })),
+      } as any);
+
+      const res = await defaultSMMFetcher('https://api.test/v2', { key: '123', action: 'balance' });
+      expect(res.balance).toBe('50.00');
+    });
+
+    it('throws when upstream returns an HTML challenge or error page', async () => {
+      const { defaultSMMFetcher } = await import('../smm-provider');
+      global.fetch = vi.fn().mockResolvedValue({
+        status: 502,
+        text: vi.fn().mockResolvedValue('<!DOCTYPE html><html><body>502 Bad Gateway</body></html>'),
+      } as any);
+
+      await expect(
+        defaultSMMFetcher('https://api.test/v2', { key: '123' }, 0, 1000)
+      ).rejects.toThrow(/HTML page/);
+    });
+
+    it('throws when upstream returns invalid JSON', async () => {
+      const { defaultSMMFetcher } = await import('../smm-provider');
+      global.fetch = vi.fn().mockResolvedValue({
+        status: 200,
+        text: vi.fn().mockResolvedValue('{ malformed json'),
+      } as any);
+
+      await expect(
+        defaultSMMFetcher('https://api.test/v2', { key: '123' }, 0, 1000)
+      ).rejects.toThrow(/Invalid JSON/);
+    });
+
+    it('retries transient errors with backoff and succeeds on retry', async () => {
+      const { defaultSMMFetcher } = await import('../smm-provider');
+      let calls = 0;
+      global.fetch = vi.fn().mockImplementation(async () => {
+        calls++;
+        if (calls === 1) {
+          throw new Error('fetch failed: network glitch');
+        }
+        return {
+          status: 200,
+          text: vi.fn().mockResolvedValue(JSON.stringify({ success: true })),
+        } as any;
+      });
+
+      const res = await defaultSMMFetcher('https://api.test/v2', { key: '123' }, 2, 1000);
+      expect(calls).toBe(2);
+      expect(res.success).toBe(true);
+    });
+  });
 });
