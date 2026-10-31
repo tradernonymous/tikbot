@@ -201,16 +201,28 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
   const [campaigns, setCampaigns] = useState<GovernedCampaign[]>(() => {
     return [
       {
+        id: 'camp-jack-50',
+        title: '50 High-Retention Views for @jackprintezy (Video)',
+        targetUrl: 'https://www.tiktok.com/@jackprintezy/video/7634241914350341397',
+        actionType: 'VIEW',
+        targetCount: 50,
+        executedCount: 4,
+        status: 'RUNNING',
+        approvalId: 'appr-jack-50',
+        riskTier: 'LOW',
+        createdAt: 'Just now',
+      },
+      {
         id: 'camp-jack-33',
-        title: '33 High-Retention Views for @jackprintezy',
+        title: '33 High-Retention Views for @jackprintezy (Photo)',
         targetUrl: 'https://www.tiktok.com/@jackprintezy/photo/7661970071471803669',
         actionType: 'VIEW',
         targetCount: 33,
-        executedCount: 5,
+        executedCount: 18,
         status: 'RUNNING',
         approvalId: 'appr-jack-33',
         riskTier: 'LOW',
-        createdAt: 'Just now',
+        createdAt: '5 mins ago',
       },
       ...fixtures.campaigns.map((c) => ({
         ...c,
@@ -223,26 +235,37 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
   // Initialize Farm Tasks
   const [farmTasks, setFarmTasks] = useState<ActiveFarmTask[]>([
     {
+      id: 'task-jack-50',
+      serviceName: 'High-Retention Video View Engine',
+      serviceType: 'VIEW',
+      targetUrl: 'https://www.tiktok.com/@jackprintezy/video/7634241914350341397',
+      executed: 4,
+      target: 50,
+      status: 'RUNNING',
+      assignedNodes: 3,
+      startedAt: 'Just now',
+    },
+    {
       id: 'task-jack-01',
       serviceName: 'High-Retention Video View Engine',
       serviceType: 'VIEW',
       targetUrl: 'https://www.tiktok.com/@jackprintezy/photo/7661970071471803669',
-      executed: 5,
+      executed: 18,
       target: 33,
       status: 'RUNNING',
       assignedNodes: 3,
-      startedAt: 'Just now',
+      startedAt: '5 mins ago',
     },
     {
       id: 'task-901',
       serviceName: 'High-Retention Video View Engine',
       serviceType: 'VIEW',
       targetUrl: 'https://www.tiktok.com/@topcreator/video/71829102918',
-      executed: 180,
+      executed: 210,
       target: 250,
       status: 'RUNNING',
       assignedNodes: 12,
-      startedAt: '12 mins ago',
+      startedAt: '15 mins ago',
     },
   ]);
 
@@ -277,6 +300,19 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
   // Initialize Researched Outlier Posts
   const [researchedPosts, setResearchedPosts] = useState<ResearchedPost[]>(() => {
     return [
+      {
+        id: 'post-jack-video-1',
+        platformPostId: '7634241914350341397',
+        authorHandle: 'jackprintezy',
+        caption: 'Viral Video by @jackprintezy (Hook Tested)',
+        viewCount: 18400,
+        likeCount: 2100,
+        commentCount: 142,
+        shareCount: 288,
+        outlierScore: 4.6,
+        hookText: 'High-retention visual opening by @jackprintezy',
+        downloadUrl: 'https://www.tiktok.com/@jackprintezy/video/7634241914350341397',
+      },
       {
         id: 'post-jack-1',
         platformPostId: '7661970071471803669',
