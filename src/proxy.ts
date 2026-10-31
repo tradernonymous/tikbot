@@ -5,12 +5,13 @@ import { verifySessionToken } from '@/security/auth';
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Exempt static assets, favicon, health check, login API, and machine-to-machine webhooks
+  // Exempt static assets, favicon, health check, metrics exposition, login API, and machine-to-machine webhooks
   if (
     pathname.startsWith('/_next') ||
     pathname === '/favicon.ico' ||
     pathname === '/api/health' ||
     pathname.startsWith('/api/health/') ||
+    pathname === '/api/metrics' ||
     pathname === '/api/v1/auth/login' ||
     pathname.startsWith('/api/v1/webhooks/')
   ) {
