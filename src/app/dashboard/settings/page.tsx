@@ -29,7 +29,7 @@ export default function SettingsPage() {
   const [concurrency, setConcurrency] = useState(3);
 
   // SMM Provider Settings
-  const [smmUrl, setSmmUrl] = useState('https://justanotherpanel.com/api/v2');
+  const [smmUrl, setSmmUrl] = useState('https://supplierfollower.com/api/v2');
   const [smmApiKey, setSmmApiKey] = useState('');
   const [smmBalance, setSmmBalance] = useState<{ balance: number; currency: string } | null>(null);
   const [smmChecking, setSmmChecking] = useState(false);
@@ -364,10 +364,9 @@ export default function SettingsPage() {
               </div>
 
               <div className="p-3 rounded-lg bg-slate-950/80 border border-slate-800 text-[11px] space-y-1 text-slate-400">
-                <div className="text-slate-300 font-semibold mb-1">Recommended Wholesale Providers:</div>
-                <div>• <span className="text-white font-medium">JustAnotherPanel (JAP)</span> — <code className="text-cyan-400">https://justanotherpanel.com/api/v2</code> ($0.02 - $0.05 / 1k views)</div>
-                <div>• <span className="text-white font-medium">Peakerr</span> — <code className="text-cyan-400">https://peakerr.com/api/v2</code> ($0.01 - $0.04 / 1k views)</div>
-                <div>• <span className="text-white font-medium">SMMFollows</span> — <code className="text-cyan-400">https://smmfollows.com/api/v2</code> ($0.03 - $0.08 / 1k views)</div>
+                <div className="text-slate-300 font-semibold mb-1">Active Configured Provider:</div>
+                <div>• <span className="text-white font-medium">SupplierFollower</span> — <code className="text-cyan-400">https://supplierfollower.com/api/v2</code> (Pre-configured)</div>
+                <div className="text-slate-500 pt-1">Also compatible with: JustAnotherPanel, Peakerr, SMMFollows</div>
               </div>
             </div>
           </div>

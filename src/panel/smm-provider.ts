@@ -36,10 +36,18 @@ export class SMMProviderAdapter {
   constructor(
     private config: SMMProviderConfig,
     private fetcher: SMMHttpFetcher = async (url, params) => {
+      // Use URLSearchParams (form-encoded) as standard for SMM v2 panels like supplierfollower.com
+      const formBody = new URLSearchParams();
+      for (const key in params) {
+        if (params[key] !== undefined && params[key] !== null) {
+          formBody.append(key, String(params[key]));
+        }
+      }
+
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formBody.toString(),
       });
       return response.json();
     }
