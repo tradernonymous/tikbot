@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useOperations, ActiveFarmTask } from '@/context/OperationsContext';
+import { SUPPLIER_FOLLOWER_TIKTOK_SERVICES, SMMServiceCategory } from '@/panel/catalog';
 import {
   Layers,
   Play,
@@ -113,8 +114,25 @@ export default function FarmServicesPage() {
 
   // Execution engine mode: Internal Farm vs Paid Wholesale SMM API
   const [engineMode, setEngineMode] = useState<'INTERNAL' | 'SMM'>('SMM');
-  const [smmServiceId, setSmmServiceId] = useState<string>('1234');
+  const [smmServiceId, setSmmServiceId] = useState<string>('12886');
   const [isSubmittingOrder, setIsSubmittingOrder] = useState<boolean>(false);
+
+  // Auto-set the recommended service ID when selecting a service
+  const handleLaunchModal = (service: FarmService) => {
+    setSelectedService(service);
+    const cat = service.type === 'VIEW' ? 'VIEWS' : service.type === 'LIKE' ? 'LIKES' : service.type === 'COMMENT' ? 'COMMENTS' : 'LIVE_VIEWS';
+    const presets = SUPPLIER_FOLLOWER_TIKTOK_SERVICES[cat];
+    if (presets && presets.length > 0) {
+      setSmmServiceId(presets[0].id);
+      setTargetCount(presets[0].min || (service.type === 'VIEW' ? 100 : 50));
+    } else {
+      if (service.type === 'VIEW') setTargetCount(100);
+      else if (service.type === 'LIKE') setTargetCount(50);
+      else if (service.type === 'COMMENT') setTargetCount(10);
+      else if (service.type === 'LIVE_VIEW') setTargetCount(20);
+    }
+    if (!targetUrl) setTargetUrl('');
+  };
 
   // Check URL query parameters on mount (deep links from Research or Overview)
   useEffect(() => {
@@ -128,15 +146,6 @@ export default function FarmServicesPage() {
   }, [searchParams]);
 
   const activeAccountsCount = accounts.filter((a) => a.status === 'ACTIVE').length;
-
-  const handleLaunchModal = (service: FarmService) => {
-    setSelectedService(service);
-    if (service.type === 'VIEW') setTargetCount(200);
-    else if (service.type === 'LIKE') setTargetCount(50);
-    else if (service.type === 'COMMENT') setTargetCount(15);
-    else if (service.type === 'LIVE_VIEW') setTargetCount(20);
-    if (!targetUrl) setTargetUrl('');
-  };
 
   const handleDispatchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -508,19 +517,60 @@ export default function FarmServicesPage() {
               </div>
 
               {engineMode === 'SMM' && (
-                <div>
-                  <label className="text-slate-300 font-medium block mb-1">Provider Service ID</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. 1024 or 3512 (from provider service list)"
-                    value={smmServiceId}
-                    onChange={(e) => setSmmServiceId(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-1 block">
-                    Default ID maps to High-Retention TikTok Views on standard SMM v2 panels.
-                  </span>
+                <div className="space-y-2">
+                  <label className="text-slate-300 font-medium block mb-1">
+                    Select SupplierFollower Service Tier & Price
+                  </label>
+                  <div className="space-y-1.5">
+                    {(() => {
+                      const cat =
+                        selectedService.type === 'VIEW'
+                          ? 'VIEWS'
+                          : selectedService.type === 'LIKE'
+                          ? 'LIKES'
+                          : selectedService.type === 'COMMENT'
+                          ? 'COMMENTS'
+                          : 'LIVE_VIEWS';
+                      const presets = SUPPLIER_FOLLOWER_TIKTOK_SERVICES[cat] || [];
+                      return presets.map((s) => (
+                        <div
+                          key={s.id}
+                          onClick={() => {
+                            setSmmServiceId(s.id);
+                            if (targetCount < s.min) setTargetCount(s.min);
+                          }}
+                          className={`p-2.5 rounded-lg border text-left cursor-pointer transition-all ${
+                            smmServiceId === s.id
+                              ? 'bg-cyan-950/70 border-cyan-500 text-white'
+                              : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-slate-200">
+                              #{s.id} — {s.name}
+                            </span>
+                            <span className="font-mono text-emerald-400 font-bold">
+                              RM {s.ratePer1000.toFixed(4)} / 1k
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-[10px] text-slate-400 mt-0.5">
+                            <span>{s.note}</span>
+                            <span className="font-mono text-slate-400">Min: {s.min} • Max: {s.max.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                  <div className="pt-1">
+                    <label className="text-slate-400 text-[10px] block mb-0.5">Or Custom Service ID:</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 12886"
+                      value={smmServiceId}
+                      onChange={(e) => setSmmServiceId(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
                 </div>
               )}
 
@@ -574,12 +624,27 @@ export default function FarmServicesPage() {
                 {engineMode === 'SMM' ? (
                   <>
                     <div className="flex justify-between">
-                      <span>Engine Route:</span>
-                      <span className="text-cyan-400">Wholesale SMM Provider (Cloud API)</span>
+                      <span>Provider Engine:</span>
+                      <span className="text-cyan-400">SupplierFollower (Service #{smmServiceId})</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Est. Cost:</span>
-                      <span className="text-emerald-400 font-bold">~${((targetCount / 1000) * 0.04).toFixed(4)} USD</span>
+                      <span>Calculated Order Price:</span>
+                      <span className="text-emerald-400 font-bold">
+                        {(() => {
+                          const cat =
+                            selectedService.type === 'VIEW'
+                              ? 'VIEWS'
+                              : selectedService.type === 'LIKE'
+                              ? 'LIKES'
+                              : selectedService.type === 'COMMENT'
+                              ? 'COMMENTS'
+                              : 'LIVE_VIEWS';
+                          const match = (SUPPLIER_FOLLOWER_TIKTOK_SERVICES[cat] || []).find((s) => s.id === smmServiceId);
+                          const rate = match ? match.ratePer1000 : 0.2639;
+                          const total = (targetCount / 1000) * rate;
+                          return `RM ${total.toFixed(4)} MYR (~$${(total / 4.4).toFixed(4)} USD)`;
+                        })()}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Audience Gate Bypass:</span>
