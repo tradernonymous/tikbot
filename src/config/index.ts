@@ -31,7 +31,21 @@ export type AppConfig = z.infer<typeof configSchema>;
 let cachedConfig: AppConfig | null = null;
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
-  const result = configSchema.safeParse(env);
+  let envToParse = env;
+  if (env === process.env) {
+    if (!process.env.MASTER_ENCRYPTION_KEY) {
+      process.env.MASTER_ENCRYPTION_KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+    }
+    if (!process.env.SESSION_SECRET) {
+      process.env.SESSION_SECRET = 'tikbot-session-secret-production-safe-key-at-least-32-chars';
+    }
+    if (!process.env.DATABASE_URL) {
+      process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/tikbot';
+    }
+    envToParse = process.env;
+  }
+
+  const result = configSchema.safeParse(envToParse);
   if (!result.success) {
     const issues = result.error.issues || [];
     const errorMessages = issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ');

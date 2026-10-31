@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StatusBadge } from '@/components/StatusBadge';
+import { useOperations, PublishJob, MediaAsset } from '@/context/OperationsContext';
 import {
   Calendar,
   UploadCloud,
@@ -16,51 +17,68 @@ import {
   CheckCircle2,
   Sparkles,
   Music,
+  ExternalLink,
+  Flame,
+  Layers,
 } from 'lucide-react';
-
-const INITIAL_MEDIA_ASSETS = [
-  { id: 'asset-1', title: 'Viral Hook 01 — 3-Second Rule', size: '14.2 MB', duration: '15.4s', format: '9:16' },
-  { id: 'asset-2', title: 'Product Showcase A — Workflow Demo', size: '28.5 MB', duration: '32.1s', format: '9:16' },
-  { id: 'asset-3', title: 'Customer Interview Teaser', size: '8.9 MB', duration: '18.0s', format: '9:16' },
-];
-
-const INITIAL_PUBLISH_JOBS = [
-  {
-    id: 'pub-001',
-    title: '3 productivity habits you need in 2026 #focus #hustle #fyp',
-    scheduledAt: 'Tomorrow at 14:00 UTC',
-    status: 'PENDING_APPROVAL' as const,
-    account: '@growth_creator_01',
-  },
-  {
-    id: 'pub-002',
-    title: 'Behind the scenes: Building viral AI dashboards #tech #saas',
-    scheduledAt: 'Nov 02 at 18:00 UTC',
-    status: 'SCHEDULED' as const,
-    account: '@tech_automation_bot',
-  },
-];
+import { useSearchParams, useRouter } from 'next/navigation';
 
 export default function PublishingPage() {
-  const [publishJobs, setPublishJobs] = useState(INITIAL_PUBLISH_JOBS);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const {
+    publishJobs,
+    schedulePublishJob,
+    approvePublishJob,
+    rejectPublishJob,
+    publishNow,
+    mediaAssets,
+    accounts,
+  } = useOperations();
+
+  const [selectedFolder, setSelectedFolder] = useState<string>('ALL');
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [caption, setCaption] = useState('');
+  const [targetAccount, setTargetAccount] = useState<string>('@organic_growth_hacker');
   const [platform, setPlatform] = useState<'TIKTOK' | 'INSTAGRAM' | 'YOUTUBE_SHORTS'>('TIKTOK');
+  const [autoBoostOnPublish, setAutoBoostOnPublish] = useState<boolean>(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Pre-fill hook from research tab if present in query params
+  useEffect(() => {
+    const hookParam = searchParams.get('hook');
+    const accountParam = searchParams.get('account');
+    if (hookParam) {
+      setCaption(`${decodeURIComponent(hookParam)} #viral #fyp #growth`);
+      setShowScheduleModal(true);
+    }
+    if (accountParam) {
+      setTargetAccount(accountParam);
+    }
+  }, [searchParams]);
 
   const charLimit = platform === 'YOUTUBE_SHORTS' ? 100 : 2200;
 
+  const filteredMedia = mediaAssets.filter((asset) => {
+    if (selectedFolder === 'ALL') return true;
+    return asset.folder === selectedFolder;
+  });
+
   const handleApprove = (id: string) => {
-    setPublishJobs((prev) =>
-      prev.map((j) => (j.id === id ? { ...j, status: 'SCHEDULED' as const } : j))
-    );
+    approvePublishJob(id);
     setToastMessage('Publish job authorized and scheduled for auto-upload.');
     setTimeout(() => setToastMessage(null), 4000);
   };
 
   const handleReject = (id: string) => {
-    setPublishJobs((prev) => prev.filter((j) => j.id !== id));
-    setToastMessage('Publish job rejected and cancelled.');
+    rejectPublishJob(id);
+    setToastMessage('Publish job rejected and slot freed.');
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handlePublishNow = (id: string) => {
+    publishNow(id);
+    setToastMessage('Headless browser completed upload! Post is now live on TikTok.');
     setTimeout(() => setToastMessage(null), 4000);
   };
 
@@ -68,15 +86,13 @@ export default function PublishingPage() {
     e.preventDefault();
     if (!caption) return;
 
-    const newJob = {
-      id: `pub-${Date.now().toString().slice(-4)}`,
+    schedulePublishJob({
       title: caption,
+      account: targetAccount,
+      platform,
       scheduledAt: 'Scheduled (Awaiting Approval)',
-      status: 'PENDING_APPROVAL' as const,
-      account: '@growth_creator_01',
-    };
+    });
 
-    setPublishJobs([newJob, ...publishJobs]);
     setToastMessage('Post scheduled and placed in manual approval queue.');
     setShowScheduleModal(false);
     setCaption('');
@@ -128,7 +144,7 @@ export default function PublishingPage() {
           </div>
           <div>
             <div className="text-xs text-slate-400 font-medium">Ready Assets</div>
-            <div className="text-lg font-bold text-white font-mono">{INITIAL_MEDIA_ASSETS.length} Videos</div>
+            <div className="text-lg font-bold text-white font-mono">{mediaAssets.length} Videos</div>
             <div className="text-[10px] text-cyan-400">9:16 Portrait Formatted</div>
           </div>
         </div>
@@ -139,7 +155,7 @@ export default function PublishingPage() {
           </div>
           <div>
             <div className="text-xs text-slate-400 font-medium">Active Folders</div>
-            <div className="text-lg font-bold text-white font-mono">4 Folders</div>
+            <div className="text-lg font-bold text-white font-mono">3 Categories</div>
             <div className="text-[10px] text-indigo-300">Hooks, Teasers, Demos</div>
           </div>
         </div>
@@ -161,17 +177,37 @@ export default function PublishingPage() {
           </div>
           <div>
             <div className="text-xs text-slate-400 font-medium">Published</div>
-            <div className="text-lg font-bold text-emerald-400 font-mono">12 Posts</div>
+            <div className="text-lg font-bold text-emerald-400 font-mono">
+              {publishJobs.filter((p) => p.status === 'PUBLISHED').length} Live
+            </div>
             <div className="text-[10px] text-slate-400">TiktokAutoUploader</div>
           </div>
         </div>
       </div>
 
-      {/* Media Assets Reel */}
+      {/* Media Assets Reel & Folder Filter */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-white">Media Library Assets (9:16 Portrait Ready)</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-white">Media Library Assets (9:16 Portrait Ready)</h3>
+          <div className="flex items-center gap-1.5 text-xs font-mono">
+            {['ALL', 'Hooks', 'Demos', 'Teasers'].map((folder) => (
+              <button
+                key={folder}
+                onClick={() => setSelectedFolder(folder)}
+                className={`px-2 py-0.5 rounded text-[11px] transition-colors ${
+                  selectedFolder === folder
+                    ? 'bg-cyan-600 text-white font-semibold'
+                    : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                }`}
+              >
+                {folder}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {INITIAL_MEDIA_ASSETS.map((asset) => (
+          {filteredMedia.map((asset) => (
             <div
               key={asset.id}
               className="p-4 rounded-xl bg-slate-900/40 border border-slate-800 flex flex-col justify-between"
@@ -188,7 +224,7 @@ export default function PublishingPage() {
               <div className="pt-3 mt-3 border-t border-slate-800/60 flex justify-end">
                 <button
                   onClick={() => {
-                    setCaption(`Check out this new release! ${asset.title} #viral #fyp`);
+                    setCaption(`Check out this breakdown: ${asset.title} #viral #fyp`);
                     setShowScheduleModal(true);
                   }}
                   className="text-cyan-400 hover:text-cyan-300 text-xs font-medium"
@@ -215,10 +251,11 @@ export default function PublishingPage() {
             <thead>
               <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 uppercase font-mono text-[11px]">
                 <th className="py-3 px-4 font-medium">Caption / Hook</th>
+                <th className="py-3 px-4 font-medium">Platform</th>
                 <th className="py-3 px-4 font-medium">Target Account</th>
                 <th className="py-3 px-4 font-medium">Scheduled Time</th>
                 <th className="py-3 px-4 font-medium">Status</th>
-                <th className="py-3 px-4 font-medium text-right">Approval Gate</th>
+                <th className="py-3 px-4 font-medium text-right">Approval & Publish Controls</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-slate-300">
@@ -227,6 +264,7 @@ export default function PublishingPage() {
                   <td className="py-3 px-4 font-medium text-white max-w-[280px] truncate">
                     {job.title}
                   </td>
+                  <td className="py-3 px-4 font-mono text-xs text-indigo-400">{job.platform}</td>
                   <td className="py-3 px-4 font-mono text-xs text-cyan-400">
                     {job.account}
                   </td>
@@ -254,8 +292,40 @@ export default function PublishingPage() {
                           <span>Reject</span>
                         </button>
                       </div>
+                    ) : job.status === 'SCHEDULED' ? (
+                      <div className="inline-flex gap-2">
+                        <button
+                          onClick={() => handlePublishNow(job.id)}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-semibold transition-all"
+                          title="Simulate automated upload right now"
+                        >
+                          <Play className="w-3 h-3 fill-current" />
+                          <span>Publish Now</span>
+                        </button>
+                      </div>
+                    ) : job.status === 'PUBLISHED' ? (
+                      <div className="inline-flex items-center gap-2">
+                        <a
+                          href={job.publishedUrl || 'https://www.tiktok.com'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-cyan-400 hover:underline text-[11px] font-mono flex items-center gap-1"
+                        >
+                          <span>Live Link</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                        <button
+                          onClick={() => {
+                            const urlToBoost = job.publishedUrl || 'https://www.tiktok.com';
+                            router.push(`/dashboard/panel?targetUrl=${encodeURIComponent(urlToBoost)}&service=VIEW`);
+                          }}
+                          className="px-2 py-0.5 rounded bg-cyan-950/60 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 text-[10px] font-semibold"
+                        >
+                          Boost
+                        </button>
+                      </div>
                     ) : (
-                      <span className="text-[11px] font-mono text-emerald-400">READY</span>
+                      <span className="text-[11px] font-mono text-slate-500">CANCELLED</span>
                     )}
                   </td>
                 </tr>
@@ -283,29 +353,39 @@ export default function PublishingPage() {
             </div>
 
             <form onSubmit={handleScheduleSubmit} className="space-y-4 text-xs">
-              <div>
-                <label className="text-slate-300 font-medium block mb-1">Target Publishing Platform</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['TIKTOK', 'INSTAGRAM', 'YOUTUBE_SHORTS'] as const).map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => setPlatform(p)}
-                      className={`py-1.5 px-2 rounded-lg text-[11px] font-medium transition-all ${
-                        platform === p
-                          ? 'bg-cyan-600 text-white font-semibold'
-                          : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-white'
-                      }`}
-                    >
-                      {p === 'TIKTOK' ? 'TikTok' : p === 'INSTAGRAM' ? 'IG Reels' : 'YT Shorts'}
-                    </button>
-                  ))}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-300 font-medium block mb-1">Target Account Node</label>
+                  <select
+                    value={targetAccount}
+                    onChange={(e) => setTargetAccount(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
+                  >
+                    {accounts.map((acc) => (
+                      <option key={acc.id} value={`@${acc.username}`}>
+                        @{acc.username} ({acc.platform})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-slate-300 font-medium block mb-1">Publishing Platform</label>
+                  <select
+                    value={platform}
+                    onChange={(e) => setPlatform(e.target.value as any)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
+                  >
+                    <option value="TIKTOK">TikTok (9:16)</option>
+                    <option value="INSTAGRAM">Instagram Reels</option>
+                    <option value="YOUTUBE_SHORTS">YouTube Shorts</option>
+                  </select>
                 </div>
               </div>
 
               <div>
                 <div className="flex justify-between items-center mb-1">
-                  <label className="text-slate-300 font-medium">Caption & Hashtags</label>
+                  <label className="text-slate-300 font-medium">Caption & Viral Hashtags</label>
                   <span
                     className={`font-mono text-[10px] ${
                       caption.length > charLimit ? 'text-rose-400' : 'text-slate-400'
@@ -340,13 +420,18 @@ export default function PublishingPage() {
               </div>
 
               <div className="p-3 rounded-lg bg-slate-950 border border-slate-800/80 space-y-1.5 text-[11px] font-mono text-slate-400">
-                <div className="flex justify-between">
+                <div className="flex items-center justify-between">
+                  <span>Auto-Launch Farm Boost on Publish:</span>
+                  <input
+                    type="checkbox"
+                    checked={autoBoostOnPublish}
+                    onChange={(e) => setAutoBoostOnPublish(e.target.checked)}
+                    className="accent-cyan-500 w-4 h-4 cursor-pointer"
+                  />
+                </div>
+                <div className="flex justify-between text-slate-400">
                   <span>Publishing Bridge:</span>
                   <span className="text-slate-300 font-medium">TiktokAutoUploader Headless</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Target Node:</span>
-                  <span className="text-cyan-400 font-medium">@growth_creator_01 (Active Session)</span>
                 </div>
               </div>
 
@@ -364,7 +449,7 @@ export default function PublishingPage() {
                   className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-50"
                 >
                   <Calendar className="w-3.5 h-3.5" />
-                  <span>Queue for Approval</span>
+                  <span>Queue for Operator Sign-Off</span>
                 </button>
               </div>
             </form>

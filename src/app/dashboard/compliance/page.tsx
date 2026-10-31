@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useOperations } from '@/context/OperationsContext';
+import { FarmLoadSimulator, SimulationResult } from '@/observability/load-sim';
 import {
   ShieldCheck,
   AlertOctagon,
@@ -12,52 +14,21 @@ import {
   Search,
   Filter,
   KeyRound,
+  Play,
+  Zap,
+  Download,
 } from 'lucide-react';
 
-const INITIAL_AUDIT_LOGS = [
-  {
-    id: 'audit-001',
-    action: 'KILL_SWITCH_DISENGAGE',
-    actorEmail: 'admin@tikbot.internal',
-    resourceId: 'SYSTEM',
-    ipAddress: '10.0.1.42',
-    createdAt: 'Today, 08:30 UTC',
-    status: 'SUCCESS',
-  },
-  {
-    id: 'audit-002',
-    action: 'APPROVE_CAMPAIGN',
-    actorEmail: 'operator@tikbot.internal',
-    resourceId: 'camp-q4-boost',
-    ipAddress: '10.0.1.45',
-    createdAt: 'Today, 09:15 UTC',
-    status: 'SUCCESS',
-  },
-  {
-    id: 'audit-003',
-    action: 'ROTATE_SECRET_VAULT',
-    actorEmail: 'system-worker@tikbot.internal',
-    resourceId: 'VAULT_KEY_02',
-    ipAddress: '127.0.0.1',
-    createdAt: 'Today, 09:20 UTC',
-    status: 'SUCCESS',
-  },
-  {
-    id: 'audit-004',
-    action: 'AUTO_PAUSE_TRIGGER',
-    actorEmail: 'rate-limiter@tikbot.internal',
-    resourceId: 'acc_farm_node_08',
-    ipAddress: '127.0.0.1',
-    createdAt: 'Today, 09:45 UTC',
-    status: 'WARNING',
-  },
-];
-
 export default function CompliancePage() {
-  const [auditLogs, setAuditLogs] = useState(INITIAL_AUDIT_LOGS);
+  const { auditLogs, killSwitchActive } = useOperations();
+
   const [filterAction, setFilterAction] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [rotationStatus, setRotationStatus] = useState<string | null>(null);
+
+  // Load simulator state
+  const [simRunning, setSimRunning] = useState(false);
+  const [simResult, setSimResult] = useState<SimulationResult | null>(null);
 
   const handleTestRotation = () => {
     setRotationStatus('Running zero-downtime re-encryption roundtrip...');
@@ -67,8 +38,23 @@ export default function CompliancePage() {
     }, 1000);
   };
 
+  const handleRunLoadSimulation = () => {
+    setSimRunning(true);
+    setTimeout(() => {
+      const simulator = new FarmLoadSimulator();
+      const result = simulator.simulateDailyRun({
+        totalActions: 1200,
+        accountPoolSize: 50,
+        actionType: 'LIKE',
+        dayHours: 16,
+      });
+      setSimResult(result);
+      setSimRunning(false);
+    }, 1000);
+  };
+
   const filteredLogs = auditLogs.filter((log) => {
-    if (filterAction !== 'ALL' && log.action !== filterAction) return false;
+    if (filterAction !== 'ALL' && !log.action.includes(filterAction)) return false;
     if (
       searchQuery &&
       !log.action.toLowerCase().includes(searchQuery.toLowerCase()) &&
@@ -91,6 +77,14 @@ export default function CompliancePage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleRunLoadSimulation}
+            disabled={simRunning}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-600/80 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-50"
+          >
+            <Zap className="w-3.5 h-3.5" />
+            <span>{simRunning ? 'Simulating...' : 'Run Load Simulator'}</span>
+          </button>
           <button
             onClick={handleTestRotation}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-cyan-400 border border-slate-800 text-xs font-semibold shadow-sm transition-all"
@@ -132,7 +126,7 @@ export default function CompliancePage() {
           <div>
             <div className="text-xs text-slate-400 font-medium">Cipher Vault</div>
             <div className="text-lg font-bold text-white font-mono">AES-256-GCM</div>
-            <div className="text-[10px] text-emerald-400">Master Keys Rotated</div>
+            <div className="text-[10px] text-emerald-400">Master Keys Loaded</div>
           </div>
         </div>
 
@@ -142,7 +136,9 @@ export default function CompliancePage() {
           </div>
           <div>
             <div className="text-xs text-slate-400 font-medium">Kill Switch</div>
-            <div className="text-lg font-bold text-slate-300 font-mono">ARMED</div>
+            <div className="text-lg font-bold text-slate-300 font-mono">
+              {killSwitchActive ? 'ACTIVE (FROZEN)' : 'ARMED'}
+            </div>
             <div className="text-[10px] text-slate-400">Instant Global Freeze</div>
           </div>
         </div>
@@ -159,22 +155,75 @@ export default function CompliancePage() {
         </div>
       </div>
 
+      {/* Load Simulation Result Box */}
+      {simResult && (
+        <div className="p-4 rounded-xl bg-slate-950 border border-indigo-800/60 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-cyan-400" />
+              <h4 className="text-xs font-bold text-white">1,200 Actions/Day Safety Load Test Results</h4>
+            </div>
+            <span
+              className={`text-[10px] font-mono px-2 py-0.5 rounded ${
+                !simResult.hasComplianceViolations
+                  ? 'text-emerald-400 bg-emerald-950/60 border border-emerald-800/40'
+                  : 'text-amber-400 bg-amber-950/60 border border-amber-800/40'
+              }`}
+            >
+              {!simResult.hasComplianceViolations ? 'COMPLIANT (PASSED)' : 'VELOCITY WARNING'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono pt-1">
+            <div className="p-2.5 rounded bg-slate-900 border border-slate-800">
+              <span className="text-slate-500 block text-[10px]">TOTAL DISPATCHED</span>
+              <span className="text-white font-bold">{simResult.totalDispatched} actions</span>
+            </div>
+            <div className="p-2.5 rounded bg-slate-900 border border-slate-800">
+              <span className="text-slate-500 block text-[10px]">DROPPED (OVER CAP)</span>
+              <span className="text-emerald-400 font-bold">{simResult.droppedActions}</span>
+            </div>
+            <div className="p-2.5 rounded bg-slate-900 border border-slate-800">
+              <span className="text-slate-500 block text-[10px]">MAX ON SINGLE NODE</span>
+              <span className="text-cyan-400 font-bold">{simResult.maxDailyActionsOnSingleAccount} actions/day</span>
+            </div>
+            <div className="p-2.5 rounded bg-slate-900 border border-slate-800">
+              <span className="text-slate-500 block text-[10px]">THROUGHPUT</span>
+              <span className="text-white font-bold">{simResult.avgActionsPerHour} actions/hr</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Audit Log Table Container */}
       <div className="bg-slate-900/40 border border-slate-800 rounded-xl overflow-hidden backdrop-blur-sm">
         <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="relative flex-1 max-w-sm">
+          <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
+            {['ALL', 'CAMPAIGN', 'ACCOUNT', 'KILL_SWITCH', 'PROXY', 'PUBLISH'].map((action) => (
+              <button
+                key={action}
+                onClick={() => setFilterAction(action)}
+                className={`px-2.5 py-1 rounded-lg font-mono text-[11px] transition-colors ${
+                  filterAction === action
+                    ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-semibold'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                }`}
+              >
+                {action}
+              </button>
+            ))}
+          </div>
+
+          <div className="relative flex-1 max-w-xs">
             <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Filter audit trail by action or resource..."
+              placeholder="Search audit trail..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono"
             />
           </div>
-          <span className="text-xs text-slate-400 font-mono">
-            {filteredLogs.length} LOGGED EVENTS
-          </span>
         </div>
 
         <div className="overflow-x-auto">
@@ -183,8 +232,8 @@ export default function CompliancePage() {
               <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 uppercase font-mono text-[11px]">
                 <th className="py-3 px-4 font-medium">Action</th>
                 <th className="py-3 px-4 font-medium">Operator / Actor</th>
-                <th className="py-3 px-4 font-medium">Resource</th>
-                <th className="py-3 px-4 font-medium">IP Address</th>
+                <th className="py-3 px-4 font-medium">Target Resource</th>
+                <th className="py-3 px-4 font-medium">Status</th>
                 <th className="py-3 px-4 font-medium text-right">Timestamp</th>
               </tr>
             </thead>
@@ -197,11 +246,21 @@ export default function CompliancePage() {
                   <td className="py-3 px-4 font-medium text-white">
                     {log.actorEmail}
                   </td>
-                  <td className="py-3 px-4 font-mono text-[11px] text-slate-400">
+                  <td className="py-3 px-4 font-mono text-[11px] text-slate-300">
                     {log.resourceId}
                   </td>
-                  <td className="py-3 px-4 font-mono text-xs text-slate-400">
-                    {log.ipAddress}
+                  <td className="py-3 px-4">
+                    <span
+                      className={`text-[10px] font-mono px-2 py-0.5 rounded ${
+                        log.status === 'SUCCESS'
+                          ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/40'
+                          : log.status === 'WARNING'
+                          ? 'bg-amber-950/60 text-amber-400 border border-amber-800/40'
+                          : 'bg-rose-950/60 text-rose-400 border border-rose-800/40'
+                      }`}
+                    >
+                      {log.status}
+                    </span>
                   </td>
                   <td className="py-3 px-4 font-mono text-xs text-right text-slate-400">
                     {log.createdAt}

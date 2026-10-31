@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { StatCard } from '@/components/StatCard';
 import { StatusBadge } from '@/components/StatusBadge';
-import { getDevFixtures } from '@/fixtures';
+import { useOperations } from '@/context/OperationsContext';
 import {
   Users,
   Flame,
@@ -21,29 +21,33 @@ import {
   Activity,
   Terminal,
   Zap,
+  Calendar,
 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DashboardOverview() {
-  const fixtures = getDevFixtures();
-  const [campaigns, setCampaigns] = useState(fixtures.campaigns);
-  const [showLogs, setShowLogs] = useState(false);
+  const {
+    accounts,
+    campaigns,
+    approveCampaign,
+    rejectCampaign,
+    publishJobs,
+    approvePublishJob,
+    rejectPublishJob,
+    farmTasks,
+    researchedPosts,
+    terminalLogs,
+    killSwitchActive,
+  } = useOperations();
 
-  const totalAccounts = fixtures.accounts.length;
-  const activeAccounts = fixtures.accounts.filter((a) => a.status === 'ACTIVE').length;
-  const pendingApprovals = campaigns.filter((c) => c.status === 'PENDING_APPROVAL').length;
+  const [showLogs, setShowLogs] = useState(true);
 
-  const handleApprove = (id: string) => {
-    setCampaigns((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, status: 'APPROVED' as const } : c))
-    );
-  };
-
-  const handleReject = (id: string) => {
-    setCampaigns((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, status: 'COMPLETED' as const } : c))
-    );
-  };
+  const totalAccounts = accounts.length;
+  const activeAccounts = accounts.filter((a) => a.status === 'ACTIVE').length;
+  const pendingCampaigns = campaigns.filter((c) => c.status === 'PENDING_APPROVAL');
+  const pendingPublish = publishJobs.filter((p) => p.status === 'PENDING_APPROVAL');
+  const totalPendingApprovals = pendingCampaigns.length + pendingPublish.length;
+  const runningTasksCount = farmTasks.filter((t) => t.status === 'RUNNING').length;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -52,7 +56,7 @@ export default function DashboardOverview() {
         <div>
           <h2 className="text-xl font-bold tracking-tight text-white">Operations Command Center</h2>
           <p className="text-xs text-slate-400 mt-1">
-            Real-time farm orchestration, safety compliance status, and manual campaign approval gate.
+            Real-time farm orchestration, safety compliance status, and unified operator approval gate.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -73,27 +77,37 @@ export default function DashboardOverview() {
         </div>
       </div>
 
+      {killSwitchActive && (
+        <div className="p-3.5 rounded-xl bg-rose-950/90 border border-rose-700/80 text-rose-300 text-xs flex items-center justify-between shadow-lg animate-pulse">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>EMERGENCY KILL SWITCH ACTIVE — All campaign dispatching and worker queues are frozen.</span>
+          </div>
+          <span className="text-[11px] font-mono text-white">RESUME FROM TOP BAR</span>
+        </div>
+      )}
+
       {/* Fleet Vitals Strip */}
       <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-md grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
         <div>
-          <span className="text-slate-400 block text-[11px]">QUEUE DEPTH</span>
-          <span className="text-white font-bold text-sm">3 Jobs Queued</span>
+          <span className="text-slate-400 block text-[11px]">RUNNING TASKS</span>
+          <span className="text-white font-bold text-sm">{runningTasksCount} Active Tasks</span>
           <span className="text-emerald-400 block text-[10px]">Backlog: Normal</span>
         </div>
         <div>
           <span className="text-slate-400 block text-[11px]">FARM NODES</span>
           <span className="text-cyan-400 font-bold text-sm">{activeAccounts} Active / {totalAccounts} Total</span>
-          <span className="text-slate-400 block text-[10px]">100% Sticky Proxies</span>
+          <span className="text-slate-400 block text-[10px]">100% Sticky Residential</span>
         </div>
         <div>
-          <span className="text-slate-400 block text-[11px]">BAN RATE</span>
+          <span className="text-slate-400 block text-[11px]">BAN CHALLENGE RATE</span>
           <span className="text-emerald-400 font-bold text-sm">0.0%</span>
-          <span className="text-slate-400 block text-[10px]">0 Challenges Today</span>
+          <span className="text-slate-400 block text-[10px]">Safe Threshold (&lt; 15%)</span>
         </div>
         <div>
           <span className="text-slate-400 block text-[11px]">DAILY COMPLIANCE</span>
           <span className="text-purple-400 font-bold text-sm">STRICT ENFORCED</span>
-          <span className="text-slate-400 block text-[10px]">Hourly Jitter Active</span>
+          <span className="text-slate-400 block text-[10px]">Anti-Bot Jitter Active</span>
         </div>
       </div>
 
@@ -102,7 +116,7 @@ export default function DashboardOverview() {
         <StatCard
           title="Managed Farm Pool"
           value={`${activeAccounts} / ${totalAccounts}`}
-          subtitle={`${Math.round((activeAccounts / totalAccounts) * 100)}% healthy active accounts`}
+          subtitle={`${Math.round((activeAccounts / Math.max(1, totalAccounts)) * 100)}% healthy active accounts`}
           trend="+2 warmed"
           trendPositive={true}
           icon={<Users className="w-4 h-4 text-cyan-400" />}
@@ -110,16 +124,16 @@ export default function DashboardOverview() {
         <StatCard
           title="Active Campaigns"
           value={campaigns.length}
-          subtitle={`${pendingApprovals} awaiting manual operator approval`}
+          subtitle={`${pendingCampaigns.length} awaiting manual operator approval`}
           trend="Governed"
           trendPositive={true}
           icon={<Flame className="w-4 h-4 text-amber-400" />}
         />
         <StatCard
           title="Archived Intelligence"
-          value={fixtures.posts.length}
+          value={researchedPosts.length}
           subtitle="Outlier videos mined with transcripts"
-          trend="4.82x max outlier"
+          trend="5.4x max outlier"
           trendPositive={true}
           icon={<Search className="w-4 h-4 text-emerald-400" />}
         />
@@ -140,11 +154,11 @@ export default function DashboardOverview() {
           <div>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-sm font-semibold text-white">Campaign Execution Queue</h3>
-                <p className="text-xs text-slate-400">All automated engagements require manual approval by default.</p>
+                <h3 className="text-sm font-semibold text-white">Unified Operator Approval Queue</h3>
+                <p className="text-xs text-slate-400">All campaigns and automated uploads require manual approval by default.</p>
               </div>
               <span className="text-xs font-mono text-cyan-400 px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-800/40">
-                {pendingApprovals} PENDING REVIEW
+                {totalPendingApprovals} PENDING REVIEW
               </span>
             </div>
 
@@ -152,20 +166,26 @@ export default function DashboardOverview() {
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-800 text-slate-400 uppercase font-mono text-[11px]">
-                    <th className="pb-3 font-medium">Campaign Title</th>
-                    <th className="pb-3 font-medium">Action</th>
+                    <th className="pb-3 font-medium">Type</th>
+                    <th className="pb-3 font-medium">Target / Hook</th>
                     <th className="pb-3 font-medium">Progress</th>
                     <th className="pb-3 font-medium">Status</th>
-                    <th className="pb-3 font-medium text-right">Approval</th>
+                    <th className="pb-3 font-medium text-right">Approval Gate</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                  {/* Campaign items */}
                   {campaigns.map((camp) => (
                     <tr key={camp.id} className="hover:bg-slate-800/20 transition-colors">
+                      <td className="py-3 font-mono text-cyan-400">
+                        <span className="flex items-center gap-1">
+                          <Flame className="w-3 h-3 text-amber-400" />
+                          <span>{camp.actionType}</span>
+                        </span>
+                      </td>
                       <td className="py-3 font-medium text-white max-w-[200px] truncate">
                         {camp.title}
                       </td>
-                      <td className="py-3 font-mono text-cyan-400">{camp.actionType}</td>
                       <td className="py-3 font-mono text-slate-300">
                         {camp.executedCount} / {camp.targetCount}
                       </td>
@@ -176,7 +196,7 @@ export default function DashboardOverview() {
                         {camp.status === 'PENDING_APPROVAL' ? (
                           <div className="inline-flex gap-1.5">
                             <button
-                              onClick={() => handleApprove(camp.id)}
+                              onClick={() => approveCampaign(camp.id)}
                               className="px-2 py-1 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/60 text-[10px] font-semibold transition-all flex items-center gap-1"
                               title="Approve campaign for automated dispatch"
                             >
@@ -184,7 +204,7 @@ export default function DashboardOverview() {
                               <span>Approve</span>
                             </button>
                             <button
-                              onClick={() => handleReject(camp.id)}
+                              onClick={() => rejectCampaign(camp.id)}
                               className="px-2 py-1 rounded bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/60 text-[10px] font-semibold transition-all flex items-center gap-1"
                               title="Reject campaign"
                             >
@@ -198,6 +218,45 @@ export default function DashboardOverview() {
                       </td>
                     </tr>
                   ))}
+
+                  {/* Publishing pending jobs */}
+                  {pendingPublish.map((pub) => (
+                    <tr key={pub.id} className="hover:bg-slate-800/20 transition-colors bg-indigo-950/10">
+                      <td className="py-3 font-mono text-indigo-400">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-indigo-400" />
+                          <span>POST</span>
+                        </span>
+                      </td>
+                      <td className="py-3 font-medium text-white max-w-[200px] truncate">
+                        {pub.title}
+                      </td>
+                      <td className="py-3 font-mono text-slate-300">
+                        {pub.account}
+                      </td>
+                      <td className="py-3">
+                        <StatusBadge status={pub.status} />
+                      </td>
+                      <td className="py-3 text-right">
+                        <div className="inline-flex gap-1.5">
+                          <button
+                            onClick={() => approvePublishJob(pub.id)}
+                            className="px-2 py-1 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/60 text-[10px] font-semibold transition-all flex items-center gap-1"
+                          >
+                            <Check className="w-3 h-3" />
+                            <span>Approve</span>
+                          </button>
+                          <button
+                            onClick={() => rejectPublishJob(pub.id)}
+                            className="px-2 py-1 rounded bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/60 text-[10px] font-semibold transition-all flex items-center gap-1"
+                          >
+                            <X className="w-3 h-3" />
+                            <span>Reject</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -205,13 +264,22 @@ export default function DashboardOverview() {
 
           <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-center justify-between">
             <span className="text-[11px] text-slate-400">Emergency Kill Switch override armed on top bar</span>
-            <Link
-              href="/dashboard/campaigns"
-              className="text-xs text-cyan-400 hover:text-cyan-300 font-medium flex items-center gap-1"
-            >
-              <span>View All Campaigns</span>
-              <ArrowUpRight className="w-3.5 h-3.5" />
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/dashboard/campaigns"
+                className="text-xs text-cyan-400 hover:text-cyan-300 font-medium flex items-center gap-1"
+              >
+                <span>All Campaigns</span>
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </Link>
+              <Link
+                href="/dashboard/publishing"
+                className="text-xs text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1"
+              >
+                <span>Publish Queue</span>
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
           </div>
         </div>
 
@@ -230,21 +298,21 @@ export default function DashboardOverview() {
             </p>
             <div className="space-y-2">
               <Link
-                href="/dashboard/panel"
+                href="/dashboard/panel?service=VIEW"
                 className="w-full flex items-center justify-between p-2.5 rounded-lg bg-slate-950 hover:bg-slate-800/60 border border-slate-800 text-xs transition-colors"
               >
                 <span className="text-slate-200 font-medium">Video View Retention Boost</span>
                 <span className="text-cyan-400 font-mono text-[11px]">4k/day cap &rarr;</span>
               </Link>
               <Link
-                href="/dashboard/panel"
+                href="/dashboard/panel?service=LIKE"
                 className="w-full flex items-center justify-between p-2.5 rounded-lg bg-slate-950 hover:bg-slate-800/60 border border-slate-800 text-xs transition-colors"
               >
                 <span className="text-slate-200 font-medium">Targeted Organic Likes</span>
                 <span className="text-cyan-400 font-mono text-[11px]">1.2k/day cap &rarr;</span>
               </Link>
               <Link
-                href="/dashboard/panel"
+                href="/dashboard/panel?service=LIVE_VIEW"
                 className="w-full flex items-center justify-between p-2.5 rounded-lg bg-slate-950 hover:bg-slate-800/60 border border-slate-800 text-xs transition-colors"
               >
                 <span className="text-slate-200 font-medium">Live Stream Viewer Boost</span>
@@ -253,25 +321,35 @@ export default function DashboardOverview() {
             </div>
           </div>
 
-          {/* Collapsible Worker Terminal */}
+          {/* Real Live Worker Terminal Stream */}
           <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-4 backdrop-blur-sm">
             <div
               onClick={() => setShowLogs((p) => !p)}
               className="flex items-center justify-between cursor-pointer select-none"
             >
               <div className="flex items-center gap-2">
-                <Terminal className="w-3.5 h-3.5 text-slate-400" />
+                <Terminal className="w-3.5 h-3.5 text-cyan-400" />
                 <span className="text-xs font-semibold text-white">Live Execution Stream</span>
               </div>
               <span className="text-[10px] text-cyan-400 font-mono">{showLogs ? 'HIDE' : 'EXPAND'}</span>
             </div>
 
             {showLogs && (
-              <div className="mt-3 p-2.5 rounded-lg bg-black/70 border border-slate-800/80 font-mono text-[11px] text-slate-400 space-y-1 max-h-40 overflow-y-auto">
-                <div className="text-emerald-400">[10:14:22] [worker-1] Heartbeat ACK (pool=50, healthy=50)</div>
-                <div className="text-cyan-400">[10:14:28] [queue] Claimed job view_retention_session</div>
-                <div className="text-slate-400">[10:14:35] [browser] Jitter delay 22.4s applied</div>
-                <div className="text-slate-400">[10:14:41] [proxy] Sticky residential tunnel active: US-East</div>
+              <div className="mt-3 p-2.5 rounded-lg bg-black/80 border border-slate-800/80 font-mono text-[11px] text-slate-400 space-y-1 max-h-44 overflow-y-auto">
+                {terminalLogs.map((log, idx) => (
+                  <div
+                    key={idx}
+                    className={
+                      log.includes('KILL_SWITCH') || log.includes('WARNING')
+                        ? 'text-amber-400'
+                        : log.includes('REGISTER') || log.includes('APPROVE')
+                        ? 'text-emerald-400'
+                        : 'text-cyan-300/90'
+                    }
+                  >
+                    {log}
+                  </div>
+                ))}
               </div>
             )}
           </div>

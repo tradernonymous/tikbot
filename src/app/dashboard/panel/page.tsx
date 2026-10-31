@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useOperations, ActiveFarmTask } from '@/context/OperationsContext';
 import {
   Layers,
   Play,
@@ -17,8 +18,11 @@ import {
   X,
   AlertTriangle,
   RotateCw,
+  Pause,
+  Trash2,
 } from 'lucide-react';
 import { StatusBadge } from '@/components/StatusBadge';
+import { useSearchParams } from 'next/navigation';
 
 interface FarmService {
   id: string;
@@ -88,55 +92,37 @@ const FARM_SERVICES: FarmService[] = [
   },
 ];
 
-interface ActiveTask {
-  id: string;
-  serviceName: string;
-  targetUrl: string;
-  executed: number;
-  target: number;
-  status: 'RUNNING' | 'QUEUED' | 'COMPLETED' | 'PAUSED';
-  assignedNodes: number;
-  startedAt: string;
-}
-
 export default function FarmServicesPage() {
+  const searchParams = useSearchParams();
+  const {
+    farmTasks,
+    dispatchFarmTask,
+    pauseTask,
+    resumeTask,
+    cancelTask,
+    accounts,
+    proxies,
+    killSwitchActive,
+  } = useOperations();
+
   const [selectedService, setSelectedService] = useState<FarmService | null>(null);
   const [targetUrl, setTargetUrl] = useState('');
   const [targetCount, setTargetCount] = useState<number>(50);
   const [commentNiche, setCommentNiche] = useState('TECH');
-  const [activeTasks, setActiveTasks] = useState<ActiveTask[]>([
-    {
-      id: 'task-901',
-      serviceName: 'High-Retention Video View Engine',
-      targetUrl: 'https://www.tiktok.com/@creator/video/742819283719',
-      executed: 142,
-      target: 250,
-      status: 'RUNNING',
-      assignedNodes: 12,
-      startedAt: '10 mins ago',
-    },
-    {
-      id: 'task-902',
-      serviceName: 'Targeted Humanized Likes',
-      targetUrl: 'https://www.tiktok.com/@creator/video/742819283719',
-      executed: 25,
-      target: 50,
-      status: 'RUNNING',
-      assignedNodes: 5,
-      startedAt: '25 mins ago',
-    },
-    {
-      id: 'task-903',
-      serviceName: 'Relatable Niche Comment Injector',
-      targetUrl: 'https://www.tiktok.com/@brand/video/741992817291',
-      executed: 10,
-      target: 10,
-      status: 'COMPLETED',
-      assignedNodes: 4,
-      startedAt: '1 hour ago',
-    },
-  ]);
   const [dispatchSuccess, setDispatchSuccess] = useState<string | null>(null);
+
+  // Check URL query parameters on mount (deep links from Research or Overview)
+  useEffect(() => {
+    const urlParam = searchParams.get('targetUrl');
+    const serviceParam = searchParams.get('service');
+    if (urlParam) {
+      setTargetUrl(decodeURIComponent(urlParam));
+      const match = FARM_SERVICES.find((s) => s.type === serviceParam) || FARM_SERVICES[0];
+      setSelectedService(match);
+    }
+  }, [searchParams]);
+
+  const activeAccountsCount = accounts.filter((a) => a.status === 'ACTIVE').length;
 
   const handleLaunchModal = (service: FarmService) => {
     setSelectedService(service);
@@ -144,25 +130,21 @@ export default function FarmServicesPage() {
     else if (service.type === 'LIKE') setTargetCount(50);
     else if (service.type === 'COMMENT') setTargetCount(15);
     else if (service.type === 'LIVE_VIEW') setTargetCount(20);
-    setTargetUrl('');
+    if (!targetUrl) setTargetUrl('');
   };
 
-  const handleDispatch = (e: React.FormEvent) => {
+  const handleDispatchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedService || !targetUrl) return;
 
-    const newTask: ActiveTask = {
-      id: `task-${Date.now().toString().slice(-4)}`,
+    dispatchFarmTask({
       serviceName: selectedService.name,
+      serviceType: selectedService.type,
       targetUrl,
-      executed: 0,
-      target: targetCount,
-      status: 'QUEUED',
-      assignedNodes: Math.min(Math.ceil(targetCount / 5), 15),
-      startedAt: 'Just now',
-    };
+      targetCount,
+      commentNiche,
+    });
 
-    setActiveTasks([newTask, ...activeTasks]);
     setDispatchSuccess(`Successfully dispatched ${selectedService.name} (${targetCount} actions) to internal farm queue.`);
     setSelectedService(null);
     setTimeout(() => setDispatchSuccess(null), 5000);
@@ -184,6 +166,13 @@ export default function FarmServicesPage() {
         </div>
       </div>
 
+      {killSwitchActive && (
+        <div className="p-3.5 rounded-xl bg-rose-950/90 border border-rose-700/80 text-rose-300 text-xs flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+          <span>Global Kill Switch is currently active. All task executions and worker session progress are paused.</span>
+        </div>
+      )}
+
       {dispatchSuccess && (
         <div className="p-3.5 rounded-xl bg-emerald-950/90 border border-emerald-700/80 text-emerald-300 text-xs flex items-center justify-between shadow-lg">
           <div className="flex items-center gap-2">
@@ -204,8 +193,8 @@ export default function FarmServicesPage() {
           </div>
           <div>
             <div className="text-xs text-slate-400 font-medium">Ready Farm Nodes</div>
-            <div className="text-lg font-bold text-white font-mono">50 Accounts</div>
-            <div className="text-[10px] text-emerald-400">100% Warmed & Active</div>
+            <div className="text-lg font-bold text-white font-mono">{activeAccountsCount} / {accounts.length} Nodes</div>
+            <div className="text-[10px] text-emerald-400">Healthy & Warmed</div>
           </div>
         </div>
 
@@ -215,8 +204,8 @@ export default function FarmServicesPage() {
           </div>
           <div>
             <div className="text-xs text-slate-400 font-medium">Sticky Proxy Pool</div>
-            <div className="text-lg font-bold text-white font-mono">50 Proxies</div>
-            <div className="text-[10px] text-cyan-400">1:1 IP-to-Account Binding</div>
+            <div className="text-lg font-bold text-white font-mono">{proxies.length} Gateways</div>
+            <div className="text-[10px] text-cyan-400">1:1 Dedicated Binding</div>
           </div>
         </div>
 
@@ -227,7 +216,7 @@ export default function FarmServicesPage() {
           <div>
             <div className="text-xs text-slate-400 font-medium">Daily Safe Capacity</div>
             <div className="text-lg font-bold text-emerald-400 font-mono">5,850 Actions</div>
-            <div className="text-[10px] text-slate-400">Within Hourly Anti-Bot Caps</div>
+            <div className="text-[10px] text-slate-400">Hourly Anti-Bot Jitter Active</div>
           </div>
         </div>
 
@@ -236,9 +225,9 @@ export default function FarmServicesPage() {
             <Radio className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-xs text-slate-400 font-medium">Live Booster Ready</div>
-            <div className="text-lg font-bold text-white font-mono">50 Viewers Max</div>
-            <div className="text-[10px] text-purple-300">Staggered Chat Enabled</div>
+            <div className="text-xs text-slate-400 font-medium">Active Tasks</div>
+            <div className="text-lg font-bold text-white font-mono">{farmTasks.length} Monitored</div>
+            <div className="text-[10px] text-purple-300">Live Worker Loop</div>
           </div>
         </div>
       </div>
@@ -310,14 +299,14 @@ export default function FarmServicesPage() {
         </div>
       </div>
 
-      {/* Active Tasks & Queue Monitor */}
+      {/* Active Tasks & Queue Monitor with Real Controls */}
       <div className="bg-slate-900/40 border border-slate-800 rounded-xl overflow-hidden backdrop-blur-sm">
         <div className="p-4 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4 text-cyan-400" />
             <span className="text-xs font-semibold text-white">Active Farm Automation Tasks</span>
           </div>
-          <span className="text-xs text-slate-400 font-mono">{activeTasks.length} TASKS MONITORED</span>
+          <span className="text-xs text-slate-400 font-mono">{farmTasks.length} TASKS MONITORED</span>
         </div>
 
         <div className="overflow-x-auto">
@@ -329,16 +318,16 @@ export default function FarmServicesPage() {
                 <th className="py-3 px-4 font-medium">Progress</th>
                 <th className="py-3 px-4 font-medium">Nodes</th>
                 <th className="py-3 px-4 font-medium">Status</th>
-                <th className="py-3 px-4 font-medium text-right">Started</th>
+                <th className="py-3 px-4 font-medium text-right">Controls</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-slate-300">
-              {activeTasks.map((task) => (
+              {farmTasks.map((task) => (
                 <tr key={task.id} className="hover:bg-slate-800/20 transition-colors">
-                  <td className="py-3 px-4 font-medium text-white max-w-[220px] truncate">
+                  <td className="py-3 px-4 font-medium text-white max-w-[200px] truncate">
                     {task.serviceName}
                   </td>
-                  <td className="py-3 px-4 font-mono text-[11px] text-cyan-400/90 max-w-[240px] truncate">
+                  <td className="py-3 px-4 font-mono text-[11px] text-cyan-400/90 max-w-[220px] truncate">
                     <a href={task.targetUrl} target="_blank" rel="noopener noreferrer" className="hover:underline flex items-center gap-1">
                       <span className="truncate">{task.targetUrl}</span>
                       <ExternalLink className="w-3 h-3 shrink-0" />
@@ -349,7 +338,7 @@ export default function FarmServicesPage() {
                       <span>{task.executed} / {task.target}</span>
                       <div className="w-16 h-1.5 rounded-full bg-slate-800 overflow-hidden">
                         <div
-                          className="h-full bg-cyan-500 rounded-full"
+                          className="h-full bg-cyan-500 rounded-full transition-all duration-500"
                           style={{ width: `${Math.min(100, (task.executed / task.target) * 100)}%` }}
                         />
                       </div>
@@ -361,8 +350,33 @@ export default function FarmServicesPage() {
                   <td className="py-3 px-4">
                     <StatusBadge status={task.status} />
                   </td>
-                  <td className="py-3 px-4 font-mono text-xs text-right text-slate-400">
-                    {task.startedAt}
+                  <td className="py-3 px-4 text-right">
+                    <div className="inline-flex gap-1.5">
+                      {task.status === 'RUNNING' ? (
+                        <button
+                          onClick={() => pauseTask(task.id)}
+                          className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-[10px] font-mono flex items-center gap-1"
+                        >
+                          <Pause className="w-3 h-3" />
+                          <span>Pause</span>
+                        </button>
+                      ) : task.status === 'PAUSED' ? (
+                        <button
+                          onClick={() => resumeTask(task.id)}
+                          className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-emerald-400 text-[10px] font-mono flex items-center gap-1"
+                        >
+                          <Play className="w-3 h-3" />
+                          <span>Resume</span>
+                        </button>
+                      ) : null}
+                      <button
+                        onClick={() => cancelTask(task.id)}
+                        className="p-1 rounded bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 text-[10px] transition-colors"
+                        title="Cancel task"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -393,7 +407,7 @@ export default function FarmServicesPage() {
               </button>
             </div>
 
-            <form onSubmit={handleDispatch} className="space-y-4 text-xs">
+            <form onSubmit={handleDispatchSubmit} className="space-y-4 text-xs">
               <div>
                 <label className="text-slate-300 font-medium block mb-1">Target TikTok / Douyin URL</label>
                 <input
@@ -443,11 +457,11 @@ export default function FarmServicesPage() {
               <div className="p-3 rounded-lg bg-slate-950 border border-slate-800/80 space-y-1.5 text-[11px] font-mono text-slate-400">
                 <div className="flex justify-between">
                   <span>Farm Nodes Allocated:</span>
-                  <span className="text-cyan-400">{Math.min(Math.ceil(targetCount / 5), 15)} accounts</span>
+                  <span className="text-cyan-400">{Math.min(Math.ceil(targetCount / 10), accounts.length || 5)} accounts</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Estimated Execution Window:</span>
-                  <span className="text-slate-300">~{Math.max(5, Math.round(targetCount * 1.5))} minutes</span>
+                  <span className="text-slate-300">~{Math.max(5, Math.round(targetCount * 1.2))} minutes</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Safety Compliance Gate:</span>

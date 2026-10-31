@@ -2,7 +2,10 @@
 
 import React, { useState } from 'react';
 import { StatusBadge } from '@/components/StatusBadge';
-import { getDevFixtures } from '@/fixtures';
+import { useOperations, FarmAccount, StickyProxy } from '@/context/OperationsContext';
+import { generateDeviceFingerprint } from '@/farm/fingerprint';
+import { AccountState } from '@/farm/account-lifecycle';
+import { WarmupEngine } from '@/farm/warmup-routine';
 import {
   Users,
   Plus,
@@ -17,11 +20,27 @@ import {
   Play,
   Flame,
   CheckCircle2,
+  Calendar,
+  Layers,
+  ArrowUpRight,
+  Activity,
+  Zap,
 } from 'lucide-react';
-import { generateDeviceFingerprint } from '@/farm/fingerprint';
+import { useRouter } from 'next/navigation';
 
 export default function AccountsPage() {
-  const fixtures = getDevFixtures();
+  const router = useRouter();
+  const {
+    accounts,
+    proxies,
+    addAccount,
+    advanceWarmupDay,
+    transitionAccountStatus,
+    bindProxyToAccount,
+    testProxyLatency,
+  } = useOperations();
+
+  const [activeTab, setActiveTab] = useState<'ACCOUNTS' | 'PROXIES'>('ACCOUNTS');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [inspectedAccount, setInspectedAccount] = useState<any | null>(null);
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
@@ -29,26 +48,34 @@ export default function AccountsPage() {
   const [newPlatform, setNewPlatform] = useState<'TIKTOK' | 'DOUYIN'>('TIKTOK');
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
-  const filteredAccounts = fixtures.accounts.filter((acc) => {
+  const filteredAccounts = accounts.filter((acc) => {
     if (selectedStatus === 'ALL') return true;
     return acc.status === selectedStatus;
   });
 
-  const handleInspect = (account: any) => {
-    const fingerprint = generateDeviceFingerprint('DESKTOP', parseInt(account.id.replace(/\D/g, '') || '1', 10));
-    const proxy = fixtures.proxies.find((p) => p.id === account.proxyId);
+  const handleInspect = (account: FarmAccount) => {
+    const fingerprint = generateDeviceFingerprint(
+      'DESKTOP',
+      parseInt(account.id.replace(/\D/g, '') || '1', 10)
+    );
+    const proxy = proxies.find((p) => p.id === account.proxyId);
+    const warmupEngine = new WarmupEngine(account.id, account.warmupDay);
+    const warmupPlan = warmupEngine.getCurrentDayPlan();
+
     setInspectedAccount({
       ...account,
       fingerprint,
       proxy,
+      warmupPlan,
     });
   };
 
-  const handleAddAccount = (e: React.FormEvent) => {
+  const handleAddAccountSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUsername) return;
 
-    setSuccessToast(`Account @${newUsername.replace('@', '')} registered and bound to healthy proxy.`);
+    addAccount(newUsername, newPlatform);
+    setSuccessToast(`Account @${newUsername.replace('@', '')} registered, bound to proxy, and queued for Warmup Day 1.`);
     setShowAddModal(false);
     setNewUsername('');
     setTimeout(() => setSuccessToast(null), 4000);
@@ -59,9 +86,9 @@ export default function AccountsPage() {
       {/* Top Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-white">Managed Farm Accounts</h2>
+          <h2 className="text-xl font-bold tracking-tight text-white">Managed Farm Accounts & Proxies</h2>
           <p className="text-xs text-slate-400 mt-1">
-            Accounts pool lifecycle, deterministic device fingerprints, sticky residential proxies, and velocity limit tracking.
+            Accounts pool lifecycle, deterministic device fingerprints, sticky residential proxies, and 7-day warmup routines.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -87,107 +114,245 @@ export default function AccountsPage() {
         </div>
       )}
 
-      {/* Filter Tabs & Table Container */}
-      <div className="bg-slate-900/40 border border-slate-800 rounded-xl overflow-hidden backdrop-blur-sm">
-        <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
-            {['ALL', 'ACTIVE', 'WARMING', 'COOLDOWN', 'RESTRICTED'].map((st) => (
-              <button
-                key={st}
-                onClick={() => setSelectedStatus(st)}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                  selectedStatus === st
-                    ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-semibold'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-                }`}
-              >
-                {st}
-              </button>
-            ))}
-          </div>
-          <span className="text-xs text-slate-400 font-mono">
-            {filteredAccounts.length} IDENTITIES DISPLAYED
-          </span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 uppercase font-mono text-[11px]">
-                <th className="py-3 px-4 font-medium">Handle / Username</th>
-                <th className="py-3 px-4 font-medium">Platform</th>
-                <th className="py-3 px-4 font-medium">Status</th>
-                <th className="py-3 px-4 font-medium">Health Score</th>
-                <th className="py-3 px-4 font-medium">Sticky Proxy</th>
-                <th className="py-3 px-4 font-medium">Velocity Today</th>
-                <th className="py-3 px-4 font-medium text-right">Fingerprint</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60 text-slate-300">
-              {filteredAccounts.map((acc) => {
-                const proxy = fixtures.proxies.find((p) => p.id === acc.proxyId);
-                return (
-                  <tr key={acc.id} className="hover:bg-slate-800/20 transition-colors">
-                    <td className="py-3 px-4 font-medium text-white">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-[10px] text-cyan-400 font-bold">
-                          {acc.username[0].toUpperCase()}
-                        </div>
-                        <span>@{acc.username}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 font-mono text-slate-300">{acc.platform}</td>
-                    <td className="py-3 px-4">
-                      <StatusBadge status={acc.status} />
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="font-mono text-xs font-semibold text-emerald-400">
-                        {acc.healthScore}%
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 font-mono text-[11px] text-slate-300">
-                      {proxy ? (
-                        <div className="flex items-center gap-1.5">
-                          <span className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-slate-300 font-bold">
-                            {proxy.country}
-                          </span>
-                          <span>{proxy.host}:{proxy.port}</span>
-                        </div>
-                      ) : (
-                        <span className="text-amber-400">UNBOUND</span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 font-mono text-xs text-slate-300">
-                      {acc.actionsToday} / {acc.dailyCap}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <button
-                        onClick={() => handleInspect(acc)}
-                        className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium transition-all"
-                      >
-                        Inspect
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      {/* Main Tabs (Accounts vs Proxies) */}
+      <div className="flex border-b border-slate-800 gap-2">
+        <button
+          onClick={() => setActiveTab('ACCOUNTS')}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-medium border-b-2 transition-colors ${
+            activeTab === 'ACCOUNTS'
+              ? 'border-cyan-500 text-cyan-400'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Users className="w-3.5 h-3.5" />
+          <span>Farm Identities ({accounts.length})</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('PROXIES')}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-medium border-b-2 transition-colors ${
+            activeTab === 'PROXIES'
+              ? 'border-cyan-500 text-cyan-400'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Globe className="w-3.5 h-3.5" />
+          <span>Sticky Proxy Pool ({proxies.length})</span>
+        </button>
       </div>
 
-      {/* Device Fingerprint Modal */}
+      {/* Tab 1: Accounts Fleet */}
+      {activeTab === 'ACCOUNTS' && (
+        <div className="bg-slate-900/40 border border-slate-800 rounded-xl overflow-hidden backdrop-blur-sm">
+          <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
+              {['ALL', 'ACTIVE', 'WARMING', 'COOLDOWN', 'RESTRICTED'].map((st) => (
+                <button
+                  key={st}
+                  onClick={() => setSelectedStatus(st)}
+                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                    selectedStatus === st
+                      ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-semibold'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  }`}
+                >
+                  {st}
+                </button>
+              ))}
+            </div>
+            <span className="text-xs text-slate-400 font-mono">
+              {filteredAccounts.length} IDENTITIES DISPLAYED
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 uppercase font-mono text-[11px]">
+                  <th className="py-3 px-4 font-medium">Handle / Username</th>
+                  <th className="py-3 px-4 font-medium">Platform</th>
+                  <th className="py-3 px-4 font-medium">Status</th>
+                  <th className="py-3 px-4 font-medium">Warmup</th>
+                  <th className="py-3 px-4 font-medium">Health</th>
+                  <th className="py-3 px-4 font-medium">Sticky Proxy</th>
+                  <th className="py-3 px-4 font-medium">Velocity Today</th>
+                  <th className="py-3 px-4 font-medium text-right">Quick Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                {filteredAccounts.map((acc) => {
+                  const proxy = proxies.find((p) => p.id === acc.proxyId);
+                  return (
+                    <tr key={acc.id} className="hover:bg-slate-800/20 transition-colors">
+                      <td className="py-3 px-4 font-medium text-white">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-[10px] text-cyan-400 font-bold">
+                            {acc.username[0].toUpperCase()}
+                          </div>
+                          <span>@{acc.username}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 font-mono text-slate-300">{acc.platform}</td>
+                      <td className="py-3 px-4">
+                        <StatusBadge status={acc.status} />
+                      </td>
+                      <td className="py-3 px-4 font-mono text-xs">
+                        {acc.status === 'WARMING' ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-amber-400">Day {acc.warmupDay}/7</span>
+                            <button
+                              onClick={() => advanceWarmupDay(acc.id)}
+                              className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 text-[10px] transition-colors"
+                              title="Advance to next warmup schedule day"
+                            >
+                              +Day
+                            </button>
+                          </div>
+                        ) : acc.status === 'ACTIVE' ? (
+                          <span className="text-emerald-400">Graduated</span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="font-mono text-xs font-semibold text-emerald-400">
+                          {acc.healthScore}%
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[11px] text-slate-300">
+                        {proxy ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-slate-300 font-bold">
+                              {proxy.country}
+                            </span>
+                            <span>{proxy.host}:{proxy.port}</span>
+                          </div>
+                        ) : (
+                          <span className="text-amber-400">UNBOUND</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-xs text-slate-300">
+                        {acc.actionsToday} / {acc.dailyCap}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="inline-flex gap-1.5">
+                          <button
+                            onClick={() => handleInspect(acc)}
+                            className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium transition-all"
+                          >
+                            Inspect Spec
+                          </button>
+                          {acc.status === 'ACTIVE' ? (
+                            <button
+                              onClick={() => transitionAccountStatus(acc.id, 'COOLDOWN')}
+                              className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-amber-400 border border-amber-900/40 text-[10px] font-mono transition-colors"
+                              title="Move to cooldown"
+                            >
+                              Cooldown
+                            </button>
+                          ) : acc.status === 'COOLDOWN' ? (
+                            <button
+                              onClick={() => transitionAccountStatus(acc.id, 'ACTIVE')}
+                              className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-emerald-900/40 text-[10px] font-mono transition-colors"
+                              title="Reactivate node"
+                            >
+                              Reactivate
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 2: Sticky Proxy Pool */}
+      {activeTab === 'PROXIES' && (
+        <div className="bg-slate-900/40 border border-slate-800 rounded-xl overflow-hidden backdrop-blur-sm">
+          <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+            <span className="text-xs font-semibold text-white">Residential Sticky Gateways</span>
+            <span className="text-xs text-slate-400 font-mono">1:1 IDENTITY BINDING ENFORCED</span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 uppercase font-mono text-[11px]">
+                  <th className="py-3 px-4 font-medium">Gateway Host</th>
+                  <th className="py-3 px-4 font-medium">Protocol</th>
+                  <th className="py-3 px-4 font-medium">Country / Geo</th>
+                  <th className="py-3 px-4 font-medium">Status</th>
+                  <th className="py-3 px-4 font-medium">Latency</th>
+                  <th className="py-3 px-4 font-medium">Assigned Accounts</th>
+                  <th className="py-3 px-4 font-medium text-right">Ping Probe</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                {proxies.map((proxy) => {
+                  const assignedCount = accounts.filter((a) => a.proxyId === proxy.id).length;
+                  return (
+                    <tr key={proxy.id} className="hover:bg-slate-800/20 transition-colors">
+                      <td className="py-3 px-4 font-mono font-medium text-white">
+                        {proxy.host}:{proxy.port}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-cyan-400">{proxy.protocol}</td>
+                      <td className="py-3 px-4 font-mono text-slate-300">
+                        <span className="px-1.5 py-0.5 rounded bg-slate-800 font-bold mr-1.5 text-white">
+                          {proxy.country}
+                        </span>
+                        {proxy.country === 'US' ? 'United States' : proxy.country === 'GB' ? 'United Kingdom' : 'Germany'}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold ${
+                            proxy.status === 'HEALTHY'
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                              : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                          }`}
+                        >
+                          {proxy.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-mono text-xs text-slate-300">
+                        {proxy.latencyMs} ms
+                      </td>
+                      <td className="py-3 px-4 font-mono text-xs text-cyan-400">
+                        {assignedCount} identities
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          onClick={() => testProxyLatency(proxy.id)}
+                          className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 text-[11px] font-mono transition-colors"
+                        >
+                          Ping &rarr;
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Comprehensive Hardware & Fingerprint Spec Modal */}
       {inspectedAccount && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-xl w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-lg bg-cyan-950/80 border border-cyan-800/40 text-cyan-400">
                   <Cpu className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">Hardware & Fingerprint Spec</h3>
-                  <p className="text-[11px] text-slate-400 font-mono">@{inspectedAccount.username} • {inspectedAccount.id}</p>
+                  <h3 className="text-sm font-bold text-white">Identity Spec & 7-Day Warmup</h3>
+                  <p className="text-[11px] text-slate-400 font-mono">
+                    @{inspectedAccount.username} • {inspectedAccount.id}
+                  </p>
                 </div>
               </div>
               <button
@@ -199,7 +364,54 @@ export default function AccountsPage() {
             </div>
 
             <div className="space-y-3 text-xs">
-              <div className="p-3 rounded-lg bg-slate-950 border border-slate-800/80 space-y-2">
+              {/* 7-Day Warmup Progress Card */}
+              <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-white flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>7-Day Warmup Routine: Day {inspectedAccount.warmupDay} of 7</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-cyan-400">
+                    {inspectedAccount.warmupPlan?.graduated ? 'GRADUATED' : 'IN PROGRESS'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2 text-center font-mono text-[11px] pt-1">
+                  <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
+                    <span className="text-slate-500 block text-[9px]">VIEWS</span>
+                    <span className="text-white font-bold">{inspectedAccount.warmupPlan?.targetViews}</span>
+                  </div>
+                  <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
+                    <span className="text-slate-500 block text-[9px]">LIKES</span>
+                    <span className="text-emerald-400 font-bold">{inspectedAccount.warmupPlan?.targetLikes}</span>
+                  </div>
+                  <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
+                    <span className="text-slate-500 block text-[9px]">FOLLOWS</span>
+                    <span className="text-cyan-400 font-bold">{inspectedAccount.warmupPlan?.targetFollows}</span>
+                  </div>
+                  <div className="p-1.5 rounded bg-slate-900 border border-slate-800">
+                    <span className="text-slate-500 block text-[9px]">COMMENTS</span>
+                    <span className="text-purple-400 font-bold">{inspectedAccount.warmupPlan?.targetComments}</span>
+                  </div>
+                </div>
+
+                {!inspectedAccount.warmupPlan?.graduated && (
+                  <div className="pt-2 flex justify-end">
+                    <button
+                      onClick={() => {
+                        advanceWarmupDay(inspectedAccount.id);
+                        setInspectedAccount(null);
+                      }}
+                      className="px-3 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-semibold transition-all flex items-center gap-1"
+                    >
+                      <span>Complete Day {inspectedAccount.warmupDay} & Advance</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Hardware Spec */}
+              <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800/80 space-y-2">
                 <div>
                   <span className="text-[10px] text-slate-400 font-mono block">USER AGENT</span>
                   <p className="font-mono text-slate-300 text-[11px] break-all">
@@ -226,21 +438,34 @@ export default function AccountsPage() {
                 </div>
               </div>
 
-              <div className="p-3 rounded-lg bg-slate-950 border border-slate-800/80 flex items-center justify-between text-[11px] font-mono">
+              {/* Encryption & Proxy Route */}
+              <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800/80 flex items-center justify-between text-[11px] font-mono">
                 <div>
                   <span className="text-slate-400 block">STICKY PROXY ROUTE:</span>
                   <span className="text-cyan-400">
-                    {inspectedAccount.proxy ? `${inspectedAccount.proxy.host}:${inspectedAccount.proxy.port} (${inspectedAccount.proxy.country})` : 'Unbound'}
+                    {inspectedAccount.proxy
+                      ? `${inspectedAccount.proxy.host}:${inspectedAccount.proxy.port} (${inspectedAccount.proxy.country})`
+                      : 'Unbound'}
                   </span>
                 </div>
                 <div className="text-right">
-                  <span className="text-slate-400 block">ENCRYPTION VAULT:</span>
-                  <span className="text-emerald-400 font-bold">AES-256-GCM SECURE</span>
+                  <span className="text-slate-400 block">SESSION VAULT:</span>
+                  <span className="text-emerald-400 font-bold">AES-256-GCM SEALED</span>
                 </div>
               </div>
             </div>
 
-            <div className="pt-2 flex justify-end border-t border-slate-800">
+            <div className="pt-2 flex items-center justify-between border-t border-slate-800">
+              <button
+                onClick={() => {
+                  router.push(`/dashboard/panel?targetUrl=https://www.tiktok.com/@${inspectedAccount.username}`);
+                  setInspectedAccount(null);
+                }}
+                className="text-cyan-400 hover:text-cyan-300 text-xs font-semibold flex items-center gap-1"
+              >
+                <Flame className="w-3.5 h-3.5" />
+                <span>Launch Farm Service for Node &rarr;</span>
+              </button>
               <button
                 onClick={() => setInspectedAccount(null)}
                 className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-colors"
@@ -269,7 +494,7 @@ export default function AccountsPage() {
               </button>
             </div>
 
-            <form onSubmit={handleAddAccount} className="space-y-4 text-xs">
+            <form onSubmit={handleAddAccountSubmit} className="space-y-4 text-xs">
               <div>
                 <label className="text-slate-300 font-medium block mb-1">Account Handle / Username</label>
                 <input

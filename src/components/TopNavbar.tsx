@@ -16,13 +16,27 @@ import {
   X,
   ExternalLink,
   ChevronDown,
+  Users,
+  Shield,
+  Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useOperations } from '@/context/OperationsContext';
 
 export function TopNavbar() {
   const pathname = usePathname();
-  const [killSwitchActive, setKillSwitchActive] = useState<boolean>(false);
+  const router = useRouter();
+  const {
+    killSwitchActive,
+    toggleKillSwitch,
+    notifications,
+    clearNotifications,
+    accounts,
+    campaigns,
+    researchedPosts,
+  } = useOperations();
+
   const [loading, setLoading] = useState<boolean>(false);
   const [showSearchModal, setShowSearchModal] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -45,43 +59,16 @@ export function TopNavbar() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  useEffect(() => {
-    fetch('/api/v1/system/kill-switch')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data && typeof data.active === 'boolean') {
-          setKillSwitchActive(data.active);
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  async function toggleKillSwitch() {
-    const nextState = !killSwitchActive;
-    const reason = nextState
-      ? 'Manual Operator Emergency Kill-Switch Activation from Navbar'
-      : 'Operator Resumed Normal Operations from Navbar';
-
-    if (nextState) {
+  async function handleToggleKillSwitch() {
+    if (!killSwitchActive) {
       const confirmed = window.confirm(
-        'EMERGENCY WARNING: Activating the Kill Switch will immediately abort all running browser sessions, pause active campaigns, and stop queue consumption. Proceed?'
+        'EMERGENCY WARNING: Activating the Kill Switch will immediately pause all running campaigns, halt farm task progress, and freeze queue consumption. Proceed?'
       );
       if (!confirmed) return;
     }
-
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/system/kill-switch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ active: nextState, reason }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setKillSwitchActive(data.active);
-      }
-    } catch (err) {
-      console.error('Failed to toggle kill switch', err);
+      await toggleKillSwitch();
     } finally {
       setLoading(false);
     }
@@ -97,6 +84,23 @@ export function TopNavbar() {
     if (pathname.includes('/settings')) return 'System Settings';
     return 'Operations Overview';
   };
+
+  // Filter items in command palette
+  const filteredAccounts = accounts.filter(
+    (a) =>
+      a.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      a.platform.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  const filteredCampaigns = campaigns.filter(
+    (c) =>
+      c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.actionType.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  const filteredPosts = researchedPosts.filter(
+    (p) =>
+      p.caption.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.authorHandle.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <>
@@ -154,7 +158,7 @@ export function TopNavbar() {
             </button>
 
             {showQuickActions && (
-              <div className="absolute right-0 mt-2 w-52 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl p-1.5 space-y-0.5 z-50 text-xs">
+              <div className="absolute right-0 mt-2 w-56 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl p-1.5 space-y-0.5 z-50 text-xs">
                 <Link
                   href="/dashboard/panel"
                   onClick={() => setShowQuickActions(false)}
@@ -187,6 +191,14 @@ export function TopNavbar() {
                   <Search className="w-3.5 h-3.5 text-emerald-400" />
                   <span>Analyze TikTok Video</span>
                 </Link>
+                <Link
+                  href="/dashboard/accounts"
+                  onClick={() => setShowQuickActions(false)}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-200 hover:bg-slate-800/80 transition-colors border-t border-slate-800/60 pt-2"
+                >
+                  <Users className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Manage Farm Accounts</span>
+                </Link>
               </div>
             )}
           </div>
@@ -199,30 +211,57 @@ export function TopNavbar() {
               title="Recent Activity"
             >
               <Bell className="w-3.5 h-3.5" />
-              <span className="w-2 h-2 rounded-full bg-cyan-400 absolute top-1.5 right-1.5" />
+              {notifications.length > 0 && (
+                <span className="w-2 h-2 rounded-full bg-cyan-400 absolute top-1.5 right-1.5" />
+              )}
             </button>
 
             {showNotifications && (
               <div className="absolute right-0 mt-2 w-80 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl p-3 z-50 text-xs">
                 <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
-                  <span className="font-semibold text-white">Live Worker Activity</span>
-                  <span className="text-[10px] text-cyan-400 font-mono">AUTO-STREAM</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-white">Live Event Notifications</span>
+                    <span className="text-[10px] text-cyan-400 font-mono">({notifications.length})</span>
+                  </div>
+                  {notifications.length > 0 && (
+                    <button
+                      onClick={clearNotifications}
+                      className="text-[10px] text-slate-400 hover:text-rose-400 flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Clear</span>
+                    </button>
+                  )}
                 </div>
-                <div className="space-y-2 text-slate-300">
-                  <div className="p-2 rounded-lg bg-slate-950/80 border border-slate-800/60 text-[11px]">
-                    <div className="flex items-center justify-between text-cyan-400 font-mono mb-0.5">
-                      <span>VIEW_SESSION</span>
-                      <span className="text-slate-400">Just now</span>
-                    </div>
-                    <p className="text-slate-300">Node acc_farm_03 completed 100% video retention session.</p>
-                  </div>
-                  <div className="p-2 rounded-lg bg-slate-950/80 border border-slate-800/60 text-[11px]">
-                    <div className="flex items-center justify-between text-emerald-400 font-mono mb-0.5">
-                      <span>STICKY_PROXY</span>
-                      <span className="text-slate-400">2m ago</span>
-                    </div>
-                    <p className="text-slate-300">Health probe passed on US residential gateway (142ms).</p>
-                  </div>
+                <div className="space-y-2 text-slate-300 max-h-64 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <div className="text-center py-4 text-slate-500 text-xs">No new notifications</div>
+                  ) : (
+                    notifications.map((notif) => (
+                      <div
+                        key={notif.id}
+                        className="p-2 rounded-lg bg-slate-950/80 border border-slate-800/60 text-[11px]"
+                      >
+                        <div className="flex items-center justify-between font-mono mb-0.5">
+                          <span
+                            className={
+                              notif.type === 'CRITICAL'
+                                ? 'text-rose-400 font-bold'
+                                : notif.type === 'WARNING'
+                                ? 'text-amber-400 font-semibold'
+                                : notif.type === 'SUCCESS'
+                                ? 'text-emerald-400 font-semibold'
+                                : 'text-cyan-400 font-semibold'
+                            }
+                          >
+                            {notif.title}
+                          </span>
+                          <span className="text-[10px] text-slate-500">{notif.timestamp}</span>
+                        </div>
+                        <p className="text-slate-300">{notif.description}</p>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             )}
@@ -230,7 +269,7 @@ export function TopNavbar() {
 
           {/* Master Emergency Kill Switch */}
           <button
-            onClick={toggleKillSwitch}
+            onClick={handleToggleKillSwitch}
             disabled={loading}
             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm ${
               killSwitchActive
@@ -260,7 +299,7 @@ export function TopNavbar() {
               <input
                 type="text"
                 autoFocus
-                placeholder="Type a command or jump to feature (e.g., 'research', 'accounts', 'boost', 'settings')..."
+                placeholder="Search accounts (@user), campaigns, viral posts, or jump to tabs..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-transparent text-white text-xs placeholder-slate-500 focus:outline-none"
@@ -273,51 +312,87 @@ export function TopNavbar() {
               </button>
             </div>
 
-            <div className="space-y-1 text-xs">
-              <Link
-                href="/dashboard/panel"
-                onClick={() => setShowSearchModal(false)}
-                className="flex items-center justify-between p-2 rounded-lg text-slate-300 hover:bg-slate-800/80 transition-colors"
-              >
-                <span className="flex items-center gap-2">
-                  <Radio className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Launch Farm Automation Services</span>
-                </span>
-                <span className="text-[10px] text-slate-400 font-mono">/dashboard/panel</span>
-              </Link>
-              <Link
-                href="/dashboard/research"
-                onClick={() => setShowSearchModal(false)}
-                className="flex items-center justify-between p-2 rounded-lg text-slate-300 hover:bg-slate-800/80 transition-colors"
-              >
-                <span className="flex items-center gap-2">
-                  <Search className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Analyze TikTok / Douyin Video</span>
-                </span>
-                <span className="text-[10px] text-slate-400 font-mono">/dashboard/research</span>
-              </Link>
-              <Link
-                href="/dashboard/accounts"
-                onClick={() => setShowSearchModal(false)}
-                className="flex items-center justify-between p-2 rounded-lg text-slate-300 hover:bg-slate-800/80 transition-colors"
-              >
-                <span className="flex items-center gap-2">
-                  <Layers className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Inspect Account Fingerprints & Proxies</span>
-                </span>
-                <span className="text-[10px] text-slate-400 font-mono">/dashboard/accounts</span>
-              </Link>
-              <Link
-                href="/dashboard/settings"
-                onClick={() => setShowSearchModal(false)}
-                className="flex items-center justify-between p-2 rounded-lg text-slate-300 hover:bg-slate-800/80 transition-colors"
-              >
-                <span className="flex items-center gap-2">
-                  <CheckCircle className="w-3.5 h-3.5 text-purple-400" />
-                  <span>System Settings & Velocity Caps</span>
-                </span>
-                <span className="text-[10px] text-slate-400 font-mono">/dashboard/settings</span>
-              </Link>
+            <div className="space-y-2 text-xs max-h-80 overflow-y-auto">
+              {/* Feature Shortcuts */}
+              <div className="text-[10px] text-slate-500 font-mono uppercase px-2">Navigation Shortcuts</div>
+              <div className="space-y-0.5">
+                <Link
+                  href="/dashboard/panel"
+                  onClick={() => setShowSearchModal(false)}
+                  className="flex items-center justify-between p-2 rounded-lg text-slate-300 hover:bg-slate-800/80 transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <Radio className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Launch Farm Automation Services</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">/dashboard/panel</span>
+                </Link>
+                <Link
+                  href="/dashboard/research"
+                  onClick={() => setShowSearchModal(false)}
+                  className="flex items-center justify-between p-2 rounded-lg text-slate-300 hover:bg-slate-800/80 transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <Search className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Analyze TikTok / Douyin Video</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">/dashboard/research</span>
+                </Link>
+                <Link
+                  href="/dashboard/accounts"
+                  onClick={() => setShowSearchModal(false)}
+                  className="flex items-center justify-between p-2 rounded-lg text-slate-300 hover:bg-slate-800/80 transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <Users className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Farm Accounts Fleet & Proxies</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">/dashboard/accounts</span>
+                </Link>
+              </div>
+
+              {/* Matched Accounts */}
+              {searchQuery && filteredAccounts.length > 0 && (
+                <>
+                  <div className="text-[10px] text-slate-500 font-mono uppercase px-2 pt-2">Matching Accounts</div>
+                  <div className="space-y-0.5">
+                    {filteredAccounts.map((acc) => (
+                      <Link
+                        key={acc.id}
+                        href="/dashboard/accounts"
+                        onClick={() => setShowSearchModal(false)}
+                        className="flex items-center justify-between p-2 rounded-lg text-slate-300 hover:bg-slate-800/80 transition-colors"
+                      >
+                        <span className="flex items-center gap-2 font-mono text-cyan-400">
+                          <span>@{acc.username}</span>
+                          <span className="text-slate-400 text-[10px]">({acc.status})</span>
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono">Inspect &rarr;</span>
+                      </Link>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Matched Campaigns */}
+              {searchQuery && filteredCampaigns.length > 0 && (
+                <>
+                  <div className="text-[10px] text-slate-500 font-mono uppercase px-2 pt-2">Matching Campaigns</div>
+                  <div className="space-y-0.5">
+                    {filteredCampaigns.map((camp) => (
+                      <Link
+                        key={camp.id}
+                        href="/dashboard/campaigns"
+                        onClick={() => setShowSearchModal(false)}
+                        className="flex items-center justify-between p-2 rounded-lg text-slate-300 hover:bg-slate-800/80 transition-colors"
+                      >
+                        <span className="truncate max-w-[280px]">{camp.title}</span>
+                        <span className="text-[10px] text-amber-400 font-mono uppercase">{camp.status}</span>
+                      </Link>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

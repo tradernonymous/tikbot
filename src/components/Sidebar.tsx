@@ -13,20 +13,74 @@ import {
   Settings,
   ShieldCheck,
 } from 'lucide-react';
-
-const navigation = [
-  { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Research Intelligence', href: '/dashboard/research', icon: Search },
-  { name: 'Farm Accounts', href: '/dashboard/accounts', icon: Users },
-  { name: 'Engagement Campaigns', href: '/dashboard/campaigns', icon: Flame },
-  { name: 'Content & Publishing', href: '/dashboard/publishing', icon: Calendar },
-  { name: 'Farm Services & Launch', href: '/dashboard/panel', icon: Layers },
-  { name: 'Compliance & Audit', href: '/dashboard/compliance', icon: ShieldCheck },
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
-];
+import { useOperations } from '@/context/OperationsContext';
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { campaigns, farmTasks, publishJobs, accounts, researchedPosts } = useOperations();
+
+  const pendingCampaigns = campaigns.filter((c) => c.status === 'PENDING_APPROVAL').length;
+  const pendingPublish = publishJobs.filter((p) => p.status === 'PENDING_APPROVAL').length;
+  const totalPending = pendingCampaigns + pendingPublish;
+  const runningTasks = farmTasks.filter((t) => t.status === 'RUNNING').length;
+  const activeAccounts = accounts.filter((a) => a.status === 'ACTIVE').length;
+
+  const navigation = [
+    {
+      name: 'Overview',
+      href: '/dashboard',
+      icon: LayoutDashboard,
+      badge: totalPending > 0 ? `${totalPending} due` : undefined,
+      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+    },
+    {
+      name: 'Research Intelligence',
+      href: '/dashboard/research',
+      icon: Search,
+      badge: `${researchedPosts.length} posts`,
+      badgeColor: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+    },
+    {
+      name: 'Farm Accounts',
+      href: '/dashboard/accounts',
+      icon: Users,
+      badge: `${activeAccounts} live`,
+      badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    },
+    {
+      name: 'Engagement Campaigns',
+      href: '/dashboard/campaigns',
+      icon: Flame,
+      badge: pendingCampaigns > 0 ? `${pendingCampaigns} pending` : undefined,
+      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+    },
+    {
+      name: 'Content & Publishing',
+      href: '/dashboard/publishing',
+      icon: Calendar,
+      badge: publishJobs.length > 0 ? `${publishJobs.length} slots` : undefined,
+      badgeColor: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20',
+    },
+    {
+      name: 'Farm Services & Launch',
+      href: '/dashboard/panel',
+      icon: Layers,
+      badge: runningTasks > 0 ? `${runningTasks} active` : 'Ready',
+      badgeColor: runningTasks > 0 ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 animate-pulse' : 'bg-slate-800 text-slate-400 border-slate-700',
+    },
+    {
+      name: 'Compliance & Audit',
+      href: '/dashboard/compliance',
+      icon: ShieldCheck,
+      badge: 'Strict',
+      badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    },
+    {
+      name: 'Settings',
+      href: '/dashboard/settings',
+      icon: Settings,
+    },
+  ];
 
   return (
     <aside className="w-64 border-r border-slate-800 bg-slate-950/70 flex flex-col shrink-0 min-h-screen">
@@ -49,14 +103,21 @@ export function Sidebar() {
             <Link
               key={item.name}
               href={item.href}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+              className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${
                 isActive
                   ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
                   : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
               }`}
             >
-              <Icon className="w-4 h-4" />
-              <span>{item.name}</span>
+              <div className="flex items-center gap-3">
+                <Icon className="w-4 h-4" />
+                <span>{item.name}</span>
+              </div>
+              {item.badge && (
+                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${item.badgeColor}`}>
+                  {item.badge}
+                </span>
+              )}
             </Link>
           );
         })}
