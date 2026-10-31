@@ -39,6 +39,41 @@ export function getDouyinTikTokClient(): DouyinTikTokClient {
 
 export function setFarmInteractionDriver(driver: FarmInteractionDriver | null): void {
   configuredFarmDriver = driver;
+  if (driver) {
+    jobHandlerRegistry.set('farm.like', async (payload) => {
+      const targetUrl = String(payload.url || payload.targetUrl || '');
+      if (!targetUrl) throw new Error('farm.like requires url');
+      const accountId = String(payload.accountId || 'anonymous');
+      return await executeFarmLike({ accountId, url: targetUrl, proxy: payload.proxy }, driver);
+    });
+
+    jobHandlerRegistry.set('farm.comment', async (payload) => {
+      const targetUrl = String(payload.url || payload.targetUrl || '');
+      if (!targetUrl) throw new Error('farm.comment requires url');
+      const accountId = String(payload.accountId || 'anonymous');
+      const commentText = payload.commentText ? String(payload.commentText) : undefined;
+      const category = payload.category ? String(payload.category) : undefined;
+      return await executeFarmComment(
+        { accountId, url: targetUrl, commentText, category, proxy: payload.proxy },
+        driver
+      );
+    });
+
+    jobHandlerRegistry.set('farm.live', async (payload) => {
+      const targetUrl = String(payload.url || payload.targetUrl || payload.streamUrl || '');
+      if (!targetUrl) throw new Error('farm.live requires url');
+      const accountId = String(payload.accountId || 'anonymous');
+      const durationSeconds = payload.durationSeconds ? Number(payload.durationSeconds) : 60;
+      return await executeFarmLive(
+        { accountId, url: targetUrl, durationSeconds, proxy: payload.proxy },
+        driver
+      );
+    });
+  } else {
+    jobHandlerRegistry.delete('farm.like');
+    jobHandlerRegistry.delete('farm.comment');
+    jobHandlerRegistry.delete('farm.live');
+  }
 }
 
 export function getFarmInteractionDriver(): FarmInteractionDriver | null {
@@ -75,44 +110,9 @@ export function registerDefaultJobHandlers(): void {
     });
   });
 
-  jobHandlerRegistry.set('farm.like', async (payload) => {
-    if (!configuredFarmDriver) {
-      throw new HandlerNotConfiguredError('farm.like');
-    }
-    const targetUrl = String(payload.url || payload.targetUrl || '');
-    if (!targetUrl) throw new Error('farm.like requires url');
-    const accountId = String(payload.accountId || 'anonymous');
-    return await executeFarmLike({ accountId, url: targetUrl, proxy: payload.proxy }, configuredFarmDriver);
-  });
-
-  jobHandlerRegistry.set('farm.comment', async (payload) => {
-    if (!configuredFarmDriver) {
-      throw new HandlerNotConfiguredError('farm.comment');
-    }
-    const targetUrl = String(payload.url || payload.targetUrl || '');
-    if (!targetUrl) throw new Error('farm.comment requires url');
-    const accountId = String(payload.accountId || 'anonymous');
-    const commentText = payload.commentText ? String(payload.commentText) : undefined;
-    const category = payload.category ? String(payload.category) : undefined;
-    return await executeFarmComment(
-      { accountId, url: targetUrl, commentText, category, proxy: payload.proxy },
-      configuredFarmDriver
-    );
-  });
-
-  jobHandlerRegistry.set('farm.live', async (payload) => {
-    if (!configuredFarmDriver) {
-      throw new HandlerNotConfiguredError('farm.live');
-    }
-    const targetUrl = String(payload.url || payload.targetUrl || payload.streamUrl || '');
-    if (!targetUrl) throw new Error('farm.live requires url');
-    const accountId = String(payload.accountId || 'anonymous');
-    const durationSeconds = payload.durationSeconds ? Number(payload.durationSeconds) : 60;
-    return await executeFarmLive(
-      { accountId, url: targetUrl, durationSeconds, proxy: payload.proxy },
-      configuredFarmDriver
-    );
-  });
+  if (configuredFarmDriver) {
+    setFarmInteractionDriver(configuredFarmDriver);
+  }
 
   jobHandlerRegistry.set('publish.upload', async (payload) => {
     const videoUrl = String(payload.videoUrl || payload.mediaUrl || '');

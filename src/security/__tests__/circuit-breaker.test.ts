@@ -55,7 +55,7 @@ describe('Ban-Rate Circuit Breaker & Safety Guardrails (R3.6)', () => {
 
     // Assert active campaigns were paused
     expect(prisma.campaign.updateMany).toHaveBeenCalledWith({
-      where: { status: 'ACTIVE' },
+      where: { status: 'RUNNING' },
       data: { status: 'PAUSED' },
     });
 

@@ -178,6 +178,18 @@ export class NotificationService {
     });
   }
 
+  async emitIncident(severity: NotificationSeverity, title: string, body: string, entityId?: string) {
+    return this.emit({
+      type: 'INCIDENT',
+      severity,
+      title,
+      body,
+      entityType: 'incident',
+      entityId,
+      href: '/dashboard',
+    });
+  }
+
   async emitWorkerStale(workerId: string, lastHeartbeat: Date) {
     return this.emit({
       type: 'SYSTEM',

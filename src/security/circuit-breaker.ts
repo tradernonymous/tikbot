@@ -51,7 +51,7 @@ export class BanRateCircuitBreaker {
       // Auto-pause active campaigns
       try {
         await prisma.campaign.updateMany({
-          where: { status: 'ACTIVE' },
+          where: { status: 'RUNNING' },
           data: { status: 'PAUSED' },
         });
       } catch (err) {

@@ -38,6 +38,8 @@ describe('PostgresQueueStorage (P5 TDD)', () => {
       attempts: 0,
       maxAttempts: 3,
       lastError: null,
+      deadLetterReason: null,
+      idempotencyKey: null,
       createdAt: now,
       updatedAt: now,
     });
@@ -109,6 +111,8 @@ describe('PostgresQueueStorage (P5 TDD)', () => {
         attempts: 1,
         maxAttempts: 3,
         lastError: null,
+        deadLetterReason: null,
+        idempotencyKey: null,
         createdAt: staleTime,
         updatedAt: staleTime,
       },
@@ -146,6 +150,8 @@ describe('PostgresQueueStorage (P5 TDD)', () => {
         attempts: 2,
         maxAttempts: 3,
         lastError: null,
+        deadLetterReason: null,
+        idempotencyKey: null,
         createdAt: staleTime,
         updatedAt: staleTime,
       },
@@ -179,6 +185,8 @@ describe('PostgresQueueStorage (P5 TDD)', () => {
       attempts: 0,
       maxAttempts: 3,
       lastError: null,
+      deadLetterReason: null,
+      idempotencyKey: null,
       createdAt: now,
       updatedAt: now,
     });
@@ -201,6 +209,8 @@ describe('PostgresQueueStorage (P5 TDD)', () => {
       attempts: 1,
       maxAttempts: 3,
       lastError: null,
+      deadLetterReason: null,
+      idempotencyKey: null,
       createdAt: now,
       updatedAt: now,
     });
@@ -235,6 +245,8 @@ describe('PostgresQueueStorage (P5 TDD)', () => {
       attempts: 2,
       maxAttempts: 5,
       lastError: 'Temporary network failure',
+      deadLetterReason: null,
+      idempotencyKey: null,
       createdAt: now,
       updatedAt: now,
     });

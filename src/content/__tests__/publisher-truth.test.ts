@@ -57,7 +57,7 @@ describe('R0.2 Truth Pass — Content Publisher Explicit Driver Requirement', ()
     expect(processed).toBe(true);
 
     const updatedJob = await storage.getJob(job.id);
-    expect(updatedJob?.status).toBe('FAILED');
+    expect(['FAILED', 'DEAD_LETTER']).toContain(updatedJob?.status);
     expect(updatedJob?.lastError).toContain('PUBLISHER_NOT_CONFIGURED');
   });
 

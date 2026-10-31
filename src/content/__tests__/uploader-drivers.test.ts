@@ -142,9 +142,8 @@ describe('Publish Uploader Drivers (R3.3)', () => {
     });
 
     it('throws when NODE_ENV is production', async () => {
-      const originalEnv = process.env.NODE_ENV;
+      vi.stubEnv('NODE_ENV', 'production');
       try {
-        process.env.NODE_ENV = 'production';
         const driver = new MockDriver();
         const publisher = new ContentPublisher({ uploaderDriver: driver.upload });
 
@@ -157,7 +156,7 @@ describe('Publish Uploader Drivers (R3.3)', () => {
           })
         ).rejects.toThrow(/MockDriver is strictly prohibited in production/i);
       } finally {
-        process.env.NODE_ENV = originalEnv;
+        vi.unstubAllEnvs();
       }
     });
   });
