@@ -260,6 +260,55 @@ export function registerDefaultJobHandlers(): void {
 // Initial registration of default handlers
 registerDefaultJobHandlers();
 
+let inMemoryWorkerPaused = false;
+const workerHeartbeats = new Map<string, Date>();
+
+export async function isWorkerPaused(): Promise<boolean> {
+  if (inMemoryWorkerPaused) return true;
+  try {
+    const { prisma } = await import('@/lib/prisma');
+    const setting = await prisma.systemSetting.findUnique({
+      where: { key: 'WORKER_PAUSED' },
+    });
+    return setting?.value === 'true';
+  } catch {
+    return inMemoryWorkerPaused;
+  }
+}
+
+export function setWorkerPaused(paused: boolean): void {
+  inMemoryWorkerPaused = paused;
+}
+
+export async function recordWorkerHeartbeat(id: string): Promise<void> {
+  const now = new Date();
+  workerHeartbeats.set(id, now);
+  try {
+    const { prisma } = await import('@/lib/prisma');
+    await prisma.systemSetting.upsert({
+      where: { key: `WORKER_HEARTBEAT_${id}` },
+      update: { value: now.toISOString() },
+      create: { key: `WORKER_HEARTBEAT_${id}`, value: now.toISOString() },
+    });
+  } catch {
+    // Memory fallback
+  }
+}
+
+export async function getLastWorkerHeartbeat(id: string): Promise<Date | null> {
+  const mem = workerHeartbeats.get(id);
+  if (mem) return mem;
+  try {
+    const { prisma } = await import('@/lib/prisma');
+    const setting = await prisma.systemSetting.findUnique({
+      where: { key: `WORKER_HEARTBEAT_${id}` },
+    });
+    return setting ? new Date(setting.value) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function executeJobHandler(name: string, payload: Record<string, unknown>): Promise<unknown> {
   const handler = jobHandlerRegistry.get(name);
   if (!handler) {
@@ -269,6 +318,11 @@ export async function executeJobHandler(name: string, payload: Record<string, un
 }
 
 export async function processNextJob(queue: JobQueueEngine, workerId: string): Promise<boolean> {
+  // Check if worker is paused
+  if (await isWorkerPaused()) {
+    return false;
+  }
+
   // Check circuit breaker and persisted kill switch before claiming
   if (globalBanRateCircuitBreaker.isTripped()) {
     return false;

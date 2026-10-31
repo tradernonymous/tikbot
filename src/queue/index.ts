@@ -128,6 +128,38 @@ export class InMemoryQueueStorage implements QueueStorageAdapter {
     return this.getJob(jobId);
   }
 
+  async reclaimStaleJobs(visibilityTimeoutMs = 300000): Promise<number> {
+    const threshold = new Date(Date.now() - visibilityTimeoutMs);
+    let reclaimed = 0;
+    for (const job of this.jobs.values()) {
+      if (job.status === 'RUNNING' && job.lockedAt && job.lockedAt <= threshold) {
+        const nextAttempts = job.attempts + 1;
+        if (nextAttempts >= job.maxAttempts) {
+          this.jobs.set(job.id, {
+            ...job,
+            status: 'DEAD_LETTER',
+            attempts: nextAttempts,
+            deadLetterReason: `Visibility timeout exceeded (${visibilityTimeoutMs}ms); max attempts reached`,
+            lockedAt: null,
+            lockedBy: null,
+            updatedAt: new Date(),
+          });
+        } else {
+          this.jobs.set(job.id, {
+            ...job,
+            status: 'PENDING',
+            attempts: nextAttempts,
+            lockedAt: null,
+            lockedBy: null,
+            updatedAt: new Date(),
+          });
+        }
+        reclaimed++;
+      }
+    }
+    return reclaimed;
+  }
+
   async claimNext(workerId: string): Promise<JobRecord | null> {
     const now = new Date();
     const eligible: JobRecord[] = [];
