@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useOperations, ResearchedPost } from '@/context/OperationsContext';
 import { parseAndNormalizeSocialUrl } from '@/research/url-parser';
 import { analyzeTranscript, classifyHookType } from '@/intelligence/transcripts';
@@ -44,11 +44,27 @@ export default function ResearchPage() {
       : 'ANALYZE';
   const initialMult = urlMult ? parseFloat(urlMult) : 0;
 
-  const { researchedPosts, addResearchedPost } = useOperations();
+  const { researchedPosts } = useOperations();
 
   const [activeSubTab, setActiveSubTab] = useState<'ANALYZE' | 'VOC' | 'OSINT'>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMultiplier, setSelectedMultiplier] = useState<number>(initialMult);
+  const [serverPosts, setServerPosts] = useState<any[]>([]);
+
+  const fetchServerPosts = async () => {
+    try {
+      const url = `/api/v1/research/posts?limit=50${selectedMultiplier > 0 ? `&minOutlierScore=${selectedMultiplier}` : ''}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.posts)) {
+        setServerPosts(data.posts);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    fetchServerPosts();
+  }, [selectedMultiplier]);
 
   const handleTabChange = (tab: 'ANALYZE' | 'VOC' | 'OSINT') => {
     setActiveSubTab(tab);
@@ -118,21 +134,8 @@ export default function ResearchPage() {
           provenance: data.provenance || 'live',
         });
 
-        // Auto-save to researched outliers in global context
-        const newPost: ResearchedPost = {
-          id: `post-${Date.now().toString().slice(-4)}`,
-          platformPostId: Date.now().toString().slice(-8),
-          authorHandle: data.result.author,
-          caption: data.result.caption,
-          viewCount: data.result.views,
-          likeCount: data.result.likes,
-          commentCount: data.result.comments,
-          shareCount: data.result.shares,
-          outlierScore: data.result.outlierScore,
-          hookText: data.result.hookText,
-          downloadUrl: data.result.downloadUrl,
-        };
-        addResearchedPost(newPost);
+        // Refresh server-persisted posts (R2.3)
+        await fetchServerPosts();
       } else {
         alert(data.error || 'Failed to analyze video');
       }
@@ -227,7 +230,9 @@ export default function ResearchPage() {
     a.click();
   };
 
-  const filteredPosts = researchedPosts.filter((post) => {
+  const allPosts = serverPosts.length > 0 ? serverPosts : researchedPosts;
+
+  const filteredPosts = allPosts.filter((post) => {
     if (selectedMultiplier > 0 && post.outlierScore < selectedMultiplier) return false;
     if (
       searchQuery &&

@@ -77,5 +77,6 @@ describe('Research Video Analyzer Route (P7, S4 TDD)', () => {
     expect(data.result.views).toBe(250000);
     expect(data.result.likes).toBe(35000);
     expect(data.result.outlierScore).toBeGreaterThan(0);
+    expect(data.savedPostId).toBeDefined();
   });
 });

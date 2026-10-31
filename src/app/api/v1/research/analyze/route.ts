@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireSession, handleSessionRefresh } from '@/security/auth';
 import { DouyinTikTokClient } from '@/research/download-api-client';
 import { analyzeTranscript } from '@/intelligence/transcripts';
+import { upsertResearchPost } from '@/repositories/research-posts.repository';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,9 +57,25 @@ export async function POST(req: NextRequest) {
       coverUrl: mediaData.coverUrl,
     };
 
+    // Persist post and initial snapshot to Postgres (R2.3)
+    const saved = await upsertResearchPost({
+      platform: 'TIKTOK',
+      platformPostId: mediaData.postId || `tt_${Date.now()}`,
+      authorHandle: mediaData.author.handle.replace(/^@/, ''),
+      caption: mediaData.caption || '',
+      viewCount: mediaData.stats.views,
+      likeCount: mediaData.stats.likes,
+      commentCount: mediaData.stats.comments,
+      shareCount: mediaData.stats.shares,
+      hookText: transcriptAnalysis.hookText,
+      hookType: transcriptAnalysis.hookType,
+      outlierScore,
+    });
+
     const response = NextResponse.json({
       success: true,
       result,
+      savedPostId: saved?.id || `post_${Date.now()}`,
       provenance: 'live',
       analyzedAt: new Date().toISOString(),
     });
