@@ -117,7 +117,7 @@ export function Sidebar({ serverCounts }: { serverCounts?: SidebarCounts }) {
   ];
 
   return (
-    <aside className="w-64 border-r border-slate-800 bg-slate-950/70 flex flex-col shrink-0 min-h-screen">
+    <aside className="hidden lg:flex w-64 border-r border-slate-800 bg-slate-950/70 flex-col shrink-0 min-h-screen">
       <div className="h-16 flex items-center px-6 border-b border-slate-800 gap-3">
         <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center font-bold text-white shadow-md">
           TB
