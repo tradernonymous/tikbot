@@ -41,14 +41,19 @@ npm run start
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `DATABASE_URL` | Yes | - | PostgreSQL connection URL with connection pooling |
-| `REDIS_URL` | No | `redis://localhost:6379` | Redis instance for cache and distributed locking |
-| `SESSION_SECRET` | Yes | - | Secret string for session HMAC signing (>= 32 chars) |
-| `APP_SECRET_KEY` | Yes | - | 32-character AES-256-GCM encryption key for credentials |
-| `KILL_SWITCH_ACTIVE` | No | `false` | Set to `true` or `1` for emergency zero-automation mode |
-| `TIKTOK_DOWNLOAD_API_URL` | No | `http://localhost:8000` | Self-hosted TikTok/Douyin downloader endpoint |
-| `TIKTOK_SIDECAR_URL` | No | `http://localhost:8080` | Python TikTok sidecar bridge URL |
-| `RATE_LIMIT_STRICT` | No | `true` | Enforces hard hourly/daily compliance caps |
+| `DATABASE_URL` | Yes (in prod) | `postgresql://postgres:postgres@localhost:5432/tikbot` | PostgreSQL connection URL with connection pooling |
+| `MASTER_ENCRYPTION_KEY` | Yes (in prod) | Ephemeral in dev | 64-char hex string (32 bytes) for AES-256-GCM credentials encryption |
+| `SESSION_SECRET` | Yes (in prod) | Ephemeral in dev | High-entropy string (>= 32 chars) for HMAC session token signing |
+| `ADMIN_PASSWORD` | Yes (in prod) | - | Plaintext password or `OPERATOR_PASSWORD_HASH` scrypt hash |
+| `OPERATOR_PASSWORD_HASH` | Optional | - | `$scrypt$salt$hash` format alternative for operator authentication |
+| `INTERNAL_API_SECRET` | Yes (in prod) | Ephemeral in dev | Secret for internal webhook callbacks (>= 16 chars) |
+| `SMM_PROVIDER_URL` | No | `https://supplierfollower.com/api/v2` | SMM wholesale provider API v2 endpoint |
+| `SMM_PROVIDER_API_KEY` | No | Encrypted in DB / env | Wholesale SMM provider API key |
+| `PYTHON_SIDECAR_URL` | No | `http://localhost:8000` | Python FastAPI sidecar bridge URL |
+| `STORAGE_DRIVER` | No | `local` | Media storage driver: `local` or `s3` |
+| `LOCAL_STORAGE_DIR` | No | `./data/uploads` | Path for local uploaded media assets |
+| `KILL_SWITCH_ACTIVE` | No | `false` | Emergency zero-automation mode (`true` / `false`) |
+| `WORKER_CONCURRENCY` | No | `3` | Number of simultaneous background jobs processed |
 
 ---
 
@@ -64,7 +69,7 @@ npm run start
 1. Connect GitHub repository `tradernonymous/tikbot` in Railway dashboard.
 2. Railway detects `railway.json` and multi-stage `Dockerfile`.
 3. Link Railway PostgreSQL service to provide `DATABASE_URL`.
-4. Configure `APP_SECRET_KEY` and `SESSION_SECRET` in service environment variables.
+4. Configure `MASTER_ENCRYPTION_KEY`, `SESSION_SECRET`, and `ADMIN_PASSWORD` in service environment variables.
 5. Deploy triggers automatic Prisma client generation, typechecking, and build.
 
 ---

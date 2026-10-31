@@ -111,6 +111,7 @@ export default function FarmServicesPage() {
   const [targetCount, setTargetCount] = useState<number>(50);
   const [commentNiche, setCommentNiche] = useState('TECH');
   const [dispatchSuccess, setDispatchSuccess] = useState<string | null>(null);
+  const [dispatchError, setDispatchError] = useState<string | null>(null);
 
   // Execution engine mode: Internal Farm vs Paid Wholesale SMM API
   const [engineMode, setEngineMode] = useState<'INTERNAL' | 'SMM'>('SMM');
@@ -166,25 +167,22 @@ export default function FarmServicesPage() {
 
     if (engineMode === 'SMM') {
       setIsSubmittingOrder(true);
+      setDispatchError(null);
+      setDispatchSuccess(null);
       try {
-        const savedUrl = localStorage.getItem('TIKBOT_SMM_URL') || undefined;
-        const savedKey = localStorage.getItem('TIKBOT_SMM_KEY') || undefined;
-
         const res = await fetch('/api/v1/smm', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action: 'order',
-            apiUrl: savedUrl,
-            apiKey: savedKey,
             service: smmServiceId,
-            link: targetUrl,
+            link: targetUrl.trim(),
             quantity: targetCount,
           }),
         });
 
         const data = await res.json();
-        if (!data.success) {
+        if (!res.ok || !data.success) {
           throw new Error(data.error || 'Failed to dispatch SMM order');
         }
 
@@ -197,27 +195,30 @@ export default function FarmServicesPage() {
           externalOrderId: data.order.externalOrderId,
           executionMode: 'SMM_PROVIDER',
           costFormatted,
+          status: 'RUNNING',
         });
 
         setDispatchSuccess(`Order #${data.order.externalOrderId} sent to SupplierFollower! Cost: ${costFormatted}. Live views propagating.`);
       } catch (err: any) {
-        // Fallback: If no API key configured, explain to user and dispatch to farm context
+        // P8: on failure mark the task FAILED with real error, never show success, never dispatch phantom order
         dispatchFarmTask({
-          serviceName: `${selectedService.name} (API Pending)`,
+          serviceName: `${selectedService.name} (Order Failed)`,
           serviceType: selectedService.type,
           targetUrl,
           targetCount,
           commentNiche,
           executionMode: 'SMM_PROVIDER',
-          costFormatted,
+          costFormatted: 'FAILED',
+          status: 'FAILED',
         });
-        setDispatchSuccess(
-          `Dispatched! Note: ${err.message}. To connect live provider orders, add your API key in Settings > SMM Provider.`
+        setDispatchError(
+          `SMM Order Failed: ${err.message}. Task recorded as FAILED. Check server configuration in Settings.`
         );
       } finally {
         setIsSubmittingOrder(false);
         setSelectedService(null);
         setTimeout(() => setDispatchSuccess(null), 7000);
+        setTimeout(() => setDispatchError(null), 10000);
       }
       return;
     }
@@ -267,6 +268,18 @@ export default function FarmServicesPage() {
             <span>{dispatchSuccess}</span>
           </div>
           <button onClick={() => setDispatchSuccess(null)} className="text-slate-400 hover:text-white">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {dispatchError && (
+        <div className="p-3.5 rounded-xl bg-rose-950/90 border border-rose-700/80 text-rose-300 text-xs flex items-center justify-between shadow-lg">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>{dispatchError}</span>
+          </div>
+          <button onClick={() => setDispatchError(null)} className="text-slate-400 hover:text-white">
             <X className="w-4 h-4" />
           </button>
         </div>
