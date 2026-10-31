@@ -312,42 +312,8 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     { id: 'asset-3', title: 'Pain Points Teaser — Creator Struggle Teardown', size: '8.9 MB', duration: '18.0s', format: '9:16', folder: 'Teasers' },
   ]);
 
-  // Initialize Researched Outlier Posts
-  const [researchedPosts, setResearchedPosts] = useState<ResearchedPost[]>(() => {
-    return [
-      {
-        id: 'post-jack-video-1',
-        platformPostId: '7634241914350341397',
-        authorHandle: 'jackprintezy',
-        caption: 'Viral Video by @jackprintezy (Hook Tested)',
-        viewCount: 18400,
-        likeCount: 2100,
-        commentCount: 142,
-        shareCount: 288,
-        outlierScore: 4.6,
-        hookText: 'High-retention visual opening by @jackprintezy',
-        downloadUrl: 'https://www.tiktok.com/@jackprintezy/video/7634241914350341397',
-      },
-      {
-        id: 'post-jack-1',
-        platformPostId: '7661970071471803669',
-        authorHandle: 'jackprintezy',
-        caption: 'TikTok Carousel Photo Post by @jackprintezy',
-        viewCount: 12400,
-        likeCount: 1540,
-        commentCount: 92,
-        shareCount: 160,
-        outlierScore: 4.2,
-        hookText: 'Photo Showcase by @jackprintezy',
-        downloadUrl: 'https://www.tiktok.com/@jackprintezy/photo/7661970071471803669',
-      },
-      ...fixtures.posts.map((p) => ({
-        ...p,
-        hookText: 'Stop posting 60-second clips before you watch this 3-second hook framework.',
-        downloadUrl: 'https://download-api.tikbot.internal/video/hd_no_watermark.mp4',
-      })),
-    ];
-  });
+  // Initialize Researched Outlier Posts from server state
+  const [researchedPosts, setResearchedPosts] = useState<ResearchedPost[]>([]);
 
   // Initialize Audit Logs
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([
