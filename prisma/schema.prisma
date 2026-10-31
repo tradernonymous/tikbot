@@ -286,3 +286,157 @@ model Notification {
   @@index([dedupeKey])
 }
 
+model Creator {
+  id               String            @id @default(cuid())
+  platform         String            @default("TIKTOK")
+  handle           String
+  platformUserId   String?
+  followerCount    Int               @default(0)
+  videoCount       Int               @default(0)
+  medianViews      Float             @default(0)
+  madViews         Float             @default(0)
+  sampleSize       Int               @default(0)
+  lastScrapedAt    DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  posts            ResearchPost[]
+  watchlistTargets WatchlistTarget[]
+
+  @@unique([platform, handle])
+  @@index([handle])
+}
+
+model ResearchPost {
+  id              String         @id @default(cuid())
+  platform        String         @default("TIKTOK")
+  platformPostId  String
+  authorHandle    String
+  caption         String
+  viewCount       Int            @default(0)
+  likeCount       Int            @default(0)
+  commentCount    Int            @default(0)
+  shareCount      Int            @default(0)
+  hookText        String?
+  hookType        String?
+  outlierScore    Float          @default(1.0)
+  medianBaseline  Float?
+  confidence      Float?
+  creatorId       String?
+  creator         Creator?       @relation(fields: [creatorId], references: [id])
+  snapshots       PostSnapshot[]
+  metricSamples   MetricSample[]
+  publishedAt     DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@unique([platform, platformPostId])
+  @@index([authorHandle])
+  @@index([outlierScore])
+  @@index([createdAt])
+}
+
+model PostSnapshot {
+  id         String       @id @default(cuid())
+  postId     String
+  post       ResearchPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  views      Int          @default(0)
+  likes      Int          @default(0)
+  comments   Int          @default(0)
+  shares     Int          @default(0)
+  capturedAt DateTime     @default(now())
+
+  @@index([postId, capturedAt])
+}
+
+model Watchlist {
+  id          String            @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  targets     WatchlistTarget[]
+}
+
+model WatchlistTarget {
+  id                String    @id @default(cuid())
+  watchlistId       String
+  watchlist         Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+  creatorId         String?
+  creator           Creator?  @relation(fields: [creatorId], references: [id])
+  platform          String    @default("TIKTOK")
+  targetHandle      String
+  pollIntervalHours Int       @default(24)
+  lastPolledAt      DateTime?
+  createdAt         DateTime  @default(now())
+
+  @@index([watchlistId])
+  @@index([targetHandle])
+}
+
+model TrendSignal {
+  id         String   @id @default(cuid())
+  type       String
+  signalKey  String
+  score      Float    @default(0)
+  velocity   Float    @default(0)
+  sampleSize Int      @default(0)
+  region     String   @default("US")
+  firstSeenAt DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@unique([type, signalKey, region])
+  @@index([type, score])
+}
+
+model Sound {
+  id              String   @id @default(cuid())
+  platform        String   @default("TIKTOK")
+  platformSoundId String
+  title           String
+  author          String?
+  usageCount      Int      @default(0)
+  durationSeconds Float?
+  createdAt       DateTime @default(now())
+
+  @@unique([platform, platformSoundId])
+}
+
+model Hook {
+  id                 String   @id @default(cuid())
+  pattern            String
+  textTemplate       String
+  retentionProxyScore Float   @default(0)
+  usageCount         Int      @default(0)
+  createdAt          DateTime @default(now())
+
+  @@index([pattern])
+}
+
+model ContentPlan {
+  id           String   @id @default(cuid())
+  title        String
+  theme        String?
+  hookPattern  String?
+  captionDraft String?
+  status       String   @default("IDEA")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([status])
+}
+
+model MetricSample {
+  id             String        @id @default(cuid())
+  targetType     String
+  targetId       String
+  views          Int           @default(0)
+  likes          Int           @default(0)
+  comments       Int           @default(0)
+  shares         Int           @default(0)
+  timestamp      DateTime      @default(now())
+  researchPostId String?
+  researchPost   ResearchPost? @relation(fields: [researchPostId], references: [id])
+
+  @@index([targetType, targetId, timestamp])
+}
+
