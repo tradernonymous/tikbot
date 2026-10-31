@@ -69,12 +69,12 @@ describe('Config Loader (Zod Validation)', () => {
       })
     ).toThrowError(/MASTER_ENCRYPTION_KEY|SESSION_SECRET/);
 
-    process.env.NODE_ENV = 'production';
+    (process.env as any).NODE_ENV = 'production';
     expect(() => loadConfig({})).toThrowError();
   });
 
   it('succeeds in development when keys are missing by generating ephemeral values', () => {
-    process.env.NODE_ENV = 'development';
+    (process.env as any).NODE_ENV = 'development';
     const configFromEmpty = loadConfig({});
     expect(configFromEmpty.MASTER_ENCRYPTION_KEY).toHaveLength(64);
     expect(configFromEmpty.SESSION_SECRET.length).toBeGreaterThanOrEqual(32);

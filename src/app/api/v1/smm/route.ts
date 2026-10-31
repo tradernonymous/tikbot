@@ -22,7 +22,7 @@ const orderSchema = z.object({
   action: z.literal('order'),
   service: z.union([z.string(), z.number()]).transform(String).pipe(z.string().min(1, 'service is required')),
   link: z.string().min(1, 'link is required'),
-  quantity: z.union([z.string(), z.number()]).pipe(z.coerce.number().positive('quantity must be positive')),
+  quantity: z.coerce.number().positive('quantity must be positive'),
   runs: z.union([z.string(), z.number()]).optional(),
   interval: z.union([z.string(), z.number()]).optional(),
 });

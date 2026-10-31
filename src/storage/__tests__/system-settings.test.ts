@@ -30,7 +30,7 @@ describe('System Settings Storage & Encryption (S7)', () => {
     expect(callArgs.where.key).toBe('SMM_PROVIDER_API_KEY');
     
     // Value must not be plaintext in the DB write
-    const storedValue = callArgs.update.value;
+    const storedValue = callArgs.update.value as string;
     expect(storedValue).not.toBe(rawKey);
     // Decrypting the stored envelope gives the original raw key
     expect(decryptSecret(storedValue, masterKey)).toBe(rawKey);
@@ -40,7 +40,7 @@ describe('System Settings Storage & Encryption (S7)', () => {
     const rawKey = 'test_smm_api_key_secret_123';
     // setSystemSetting will call upsert with encrypted value
     await setSystemSetting('SMM_PROVIDER_API_KEY', rawKey);
-    const storedValue = vi.mocked(prisma.systemSetting.upsert).mock.calls[0][0].update.value;
+    const storedValue = vi.mocked(prisma.systemSetting.upsert).mock.calls[0][0].update.value as string;
 
     vi.mocked(prisma.systemSetting.findUnique).mockResolvedValue({
       key: 'SMM_PROVIDER_API_KEY',
