@@ -1,0 +1,165 @@
+ROLE
+You are an AI coding agent working in the tikbot repo (/mnt/hdd/storage/projects/home/tikbot).
+Stack: Next.js 16 (App Router, proxy.ts), TypeScript strict, Prisma + Postgres, Tailwind v4, Railway, single operator, admin-only.
+Surgical changes only. No comments in code unless asked.
+
+MISSION
+Move tikbot from "phases 0-9 done but still simulated in places" to a real, safe, fast product:
+1. no fabricated success anywhere
+2. notifications + deep-link navigation across pages
+3. research and metrics persisted in Postgres
+4. real execution engine (farm actions, live, publishing)
+5. accessible, responsive UI
+6. fast at 1000 accounts / 10k rows
+7. TikTok organic-marketing feature set built on real data
+Work phase by phase. Do not skip. Do not claim done without a passing test.
+
+BASELINE (verified at commit 16921755 - re-verify first)
+- 180 tests pass, coverage 94.32/80.90/96.38/97.18, tsc clean, next build clean.
+- Migrations exist: 20261101000000_init, 20261101000100_action_ledger.
+- Server-backed today: accounts, proxies, campaigns, publish jobs, audit logs, kill switch, queue, session vault, action ledger.
+- Still broken, with proof:
+  * src/worker.ts:30-70 - farm.like / farm.comment / farm.live return {success:true} without acting; research.scrape returns zero metrics.
+  * src/content/publisher.ts:38-45 - default uploaderDriver fabricates publishedVideoId and a TikTok URL.
+  * src/context/OperationsContext.tsx:112,375 - notifications are React state only; NotificationItem.href exists but TopNavbar.tsx:243 never renders it; no read state, no persistence.
+  * src/app/dashboard/research/page.tsx:91 - addResearchedPost writes client state; no ResearchPost model or route; results vanish on reload.
+  * src/app/dashboard/page.tsx:113,117,158 - hardcoded "100% Sticky Residential", "0.0% ban rate", "100%" uptime.
+  * grep -rc "aria-" src/**/*.tsx -> 0 on every page. No error.tsx / loading.tsx / not-found.tsx.
+  * src/context/OperationsContext.tsx is 1102 lines with zero useMemo/useCallback.
+  * src/observability/metrics.ts exists; no /api/metrics route.
+  * Sidebar badges from client arrays; page tab/filter state in local useState, not the URL.
+  * No virtualization dependency; tables render full arrays.
+
+EXTERNAL CONSTRAINTS
+- TikTok Research API: academic / non-profit only, data via Virtual Compute Environment. NOT usable. Do not plan on it.
+- TikTok Content Posting API: unaudited clients post private-only (SELF_ONLY); needs video.publish + app audit. Never report "published live" when the API returned SELF_ONLY.
+- Live connector, scraping and farm actions are unofficial and ToS-risky. Kill switch, caps, manual approval, provenance labels remain mandatory.
+
+HARD RULES
+- TDD: failing test -> executed RED -> minimal fix -> GREEN -> refactor. Commit per task: "fix(scope): ..." or "feat(scope): ...".
+- Coverage gate 80% branches stays green. Add tests; never delete tests or silently lower thresholds.
+- No credentials, cookies, keys or session material client-side or in GET responses.
+- No fabricated data. Every number comes from Postgres or shows "unknown" with provenance (live | cached | unknown).
+- Fixtures only when NODE_ENV !== 'production', never in the first paint path.
+- Zod-validate every mutation; session guard on every mutating route; origin check on cookie-auth mutations.
+- Keep existing layout, naming and style.
+
+REPO DECISIONS (adopt these, do not re-litigate)
+- Data layer: Douyin_TikTok_Download_API v5 sidecar (identity pool, per-endpoint token bucket, circuit breaker, watchlist, counter snapshots, archive, transcripts). Adapter only; do not vendor the Python service.
+- Live: tiktok-live-connector (Node) for real viewer count, chat, likes, gifts, joins.
+- Publishing: autotok (TS SDK, Playwright, proxy per account) as BrowserDriver; official Content Posting API as OfficialDriver.
+- Scheduler UX: mixpost model (named queues, recurring weekly slots, per-platform versions, hashtag groups).
+- Approval/inbox/analytics UX: brightbean model (approval stages, inbox with sentiment + assignment, 7/30/90 reports).
+- Media: FFmpeg variant pipeline (crop, trim, cover, subtitle burn-in). Never post identical bytes across accounts.
+- Fallback paid scraping via Apify: only with explicit approval.
+
+PHASE 0 - TRUTH PASS (2 days)
+R0.1 Delete fake farm.like / farm.comment / farm.live. Register only with a real driver; otherwise throw HandlerNotConfiguredError.
+     Test: default registry rejects farm.like; no {success:true} path.
+R0.2 Remove ContentPublisher default dummy uploader. Require UploaderDriver; publish.upload fails PUBLISHER_NOT_CONFIGURED.
+     Test: publisher without driver throws; job FAILED with that code.
+R0.3 research.scrape calls the Download API client; real payload or throw. No zero-metric stub.
+     Test: mocked success stores real numbers; failure throws.
+U0.4 Remove hardcoded telemetry ("100% Sticky Residential", "0.0%" ban rate, "100%" uptime, static totals). Bind or render "-" with provenance.
+     Test: grep guard fails if literals return.
+U0.5 Add src/components/Metric.tsx with value + provenance chip (live/cached/unknown).
+R0.6 Add NotImplementedCard; delete buttons that fake success.
+EXIT: no fabricated success path in src/; npm test green.
+
+PHASE 1 - NAVIGATION + NOTIFICATION SPINE (4 days)
+F1.1 Prisma Notification model: type, severity, title, body, href, entityType, entityId, dedupeKey, readAt, createdAt. Index (readAt, createdAt), dedupeKey. Migration.
+F1.2 NotificationService.emit() with 5-minute dedupe. Wire: campaign approve/reject, task fail, publish result, ban, kill switch, SMM failure, research job failure, stale worker.
+F1.3 Routes: GET /api/v1/notifications (cursor, filter), POST /[id]/read, POST /read-all, GET /counts.
+F1.4 Notification Center panel: tabs All / Approvals / Incidents / Research / System; server unread badge; click -> deep link + mark read; arrow-key nav; aria-live.
+     Also: per-event-type preferences (in-app always, email/webhook optional).
+F1.5 Toast layer separate from center: dedupe, 5s dismiss, timers cleared on unmount.
+F1.6 Deep-link contract: ?focus=<id> and ?tab=<name> on every entity page. Open drawer, highlight row, router.replace on close.
+F1.7 Shared EntityDrawer for account, campaign, job, publish job, task, audit log, research post.
+F1.8 Entity-aware breadcrumbs; sidebar badges from /counts.
+F1.9 Command palette v2: pages, actions, entities, recent; fuzzy; Cmd+K; role="listbox".
+F1.10 Cross-entity actions: outlier -> campaign, campaign -> tasks/audit, account -> sessions/campaigns, job -> account/metrics, log -> entity.
+F1.11 Tab/filter state in URL on research, accounts, campaigns, publishing.
+EXIT: every notification opens the exact record.
+
+PHASE 2 - PERSISTENCE FOR RESEARCH + METRICS (1 week)
+R2.1 Models: ResearchPost, PostSnapshot, Creator, Watchlist, WatchlistTarget, TrendSignal, Sound, Hook, ContentPlan, MetricSample. Unique (platform, platformPostId). Migration.
+R2.2 Repository + zod + route per model; server pagination, sort, filter.
+R2.3 Research page -> server components + server actions; analysis writes ResearchPost + first snapshot; remove addResearchedPost.
+R2.4 research.watch job per watchlist target: ingest feed, upsert, snapshot, dedupe, rate limits.
+R2.5 metrics.collect at T+1h / 24h / 7d / 28d -> MetricSample; time-series endpoint.
+R2.6 Outlier scoring on stored baselines (median + MAD, min sample, confidence). Remove fixed multipliers.
+R2.7 One-time legacy import, then delete the path.
+R2.8 [NEW] Download API adapter: health-tier identity selection, 429 retry, circuit breaker, request log. Sidecar stays external.
+R2.9 [NEW] Use v5 watchlist + counter-snapshot endpoints as the snapshot source instead of custom polling.
+EXIT: research survives reload, device change, worker restart.
+
+PHASE 3 - REAL EXECUTION (1.5 weeks)
+R3.1 Stealth runner: per-view proxy, nav timeout, concurrency cap, cancellation token, error taxonomy, no listener leak.
+R3.2 Real like/comment/live: runner + comment bank + action ledger + proof artifact (screenshot hash, DOM snippet).
+R3.3 Publish drivers: OfficialDriver (creator_info -> init -> status poll; store actual privacy incl. SELF_ONLY), BrowserDriver via autotok (per-account proxy, persisted profile), MockDriver dev-only. PublishJob stores publishId + provider status.
+R3.4 Retries per job type: max attempts, backoff + jitter, retryable vs terminal, dead-letter with reason, idempotency key.
+R3.5 SSE GET /api/v1/jobs/stream; drop 15s polling.
+R3.6 Guards: per-account concurrency, global cap, ban-rate circuit breaker auto-pause, kill switch checked before and during each job.
+R3.7 Worker lifecycle: heartbeat, stale RUNNING reclaim, graceful drain on SIGTERM, WORKER_PAUSED honored within one poll.
+R3.8 [NEW] Video variant pipeline: FFmpeg crop/trim/cover/subtitle burn-in; store variant metadata; block identical bytes across accounts.
+EXIT: every job type does real work or fails loudly.
+
+PHASE 4 - UI/UX UPGRADE (1 week)
+U4.1 Design tokens in @theme; delete dead tailwind.config.js; implement or remove the theme toggle.
+U4.2 A11y sweep: htmlFor, aria-label, aria-live, focus trap + return, visible focus ring, contrast 4.5:1, min 12px, skip link.
+U4.3 Responsive: sidebar -> drawer under lg, tables -> cards, no h-scroll at 375px.
+U4.4 loading.tsx / error.tsx / not-found.tsx; boundary above providers.
+U4.5 Forms: inline validation, disabled submit, server error mapping, dirty guard.
+U4.6 Tables: sortable, column visibility, row count, bulk select, virtualization, confirm + undo.
+U4.7 Consistent drawers, empty states with CTA, text+color status.
+U4.8 Charts: real series, legend/tooltip, table fallback, provenance.
+EXIT: no fake numbers, no unlabeled controls, usable on a phone.
+
+PHASE 5 - PERFORMANCE (5 days)
+P5.1 Split OperationsContext into UiContext + NotificationsContext; memoize all actions.
+P5.2 Server aggregates via React.cache + parallel Prisma; no useEffect fetch on overview.
+P5.3 Pagination + virtualization; server sort/filter.
+P5.4 250ms debounce, abortable fetch, optimistic rollback.
+P5.5 Code split modals/charts; dashboard initial JS < 250 kB gzip.
+P5.6 next/image, lazy posters, CLS < 0.1.
+P5.7 Indexes, remove N+1, EXPLAIN 5 slowest queries; p95 < 200ms at 10k rows.
+P5.8 CI Lighthouse + bundle budget.
+
+PHASE 6 - TIKTOK ORGANIC MARKETING FEATURES (2 weeks)
+G6.1 Trend radar: v5 hashtag + music endpoints, hashtag co-occurrence, rising score, region filter, "use in composer".
+G6.2 Competitor watch: handles, daily ingest, outliers vs creator baseline, why-it-worked (hook, length, sound, format).
+G6.3 Hook lab: transcripts -> hook variants, tags, retention proxy, link to posts.
+G6.4 Content calendar: named queues, recurring weekly slots, auto-assign next slot, drag reschedule, per-account caps.
+G6.5 Composer: per-platform post versions, hashtag groups, sound, cover frame, follow-up first comment, templates, draft -> approval -> schedule.
+G6.6 A/B hooks: variants, split schedule, 24h/72h compare, winner promote.
+G6.7 Repurpose: long video -> clips, subtitles, covers, per-platform captions (autoclip/yt-dlp patterns).
+G6.8 Reports: 7/30/90 days, per-post table (views, engagement, watch-time proxy), by hook/length/sound/time/format, CSV.
+G6.9 UGC/influencer CRM: prospects, outreach status, seeded content, ROI link.
+G6.10 Comment inbox: sentiment, assignment, threaded replies, approval gate, escalate to content idea.
+G6.11 Research -> action: outlier -> campaign template, VOC -> content plan, creator -> watchlist.
+G6.12 [NEW] Live room intelligence: tiktok-live-connector per target; viewer count time series, chat, likes, gifts, questions; feed questions into the inbox; replace fake live numbers.
+Never build on the Research API. Never claim public posting before the Content Posting API audit.
+
+PHASE 7 - OPS, SCALE, RELEASE (1 week)
+R7.1 GET /api/metrics: queue depth, job success/fail, ban rate, poller lag, supplier errors, heartbeat age.
+R7.2 Alerts -> notifications: stale heartbeat, ban spike, SMM failures, kill switch, DB latency, disk.
+R7.3 Nightly pg_dump + restore drill; expand/contract migrations.
+R7.4 Load + chaos: 1k actions/day, 10k rows, kill -9 mid-job, DB restart, proxy exhaustion.
+R7.5 E2E: login -> account -> research -> campaign -> approve -> worker -> notification -> deep link -> audit.
+R7.6 CSP without unsafe-inline, origin checks, dependency audit, rotation drill.
+R7.7 Docs: route map, entity/flow diagram, runbooks, env matrix.
+
+SEQUENCING
+Phase 0 -> Phase 1 -> (Phase 2 -> Phase 3 -> Phase 6) with Phase 4 and Phase 5 in parallel after Phase 1. Phase 7 last.
+
+DEFINITION OF DONE PER PHASE
+- Tasks implemented, not stubbed. No success:true without evidence.
+- Failing test written first, RED observed, then GREEN.
+- npm run typecheck, npm test, npm run test:coverage, npm run build green; branches >= 80%.
+- Evidence file docs/tdd/phase-N-v2-evidence.md with commands and output.
+- No new client-side secret, fabricated metric, dead nav link or unlabeled icon button.
+
+STOP AND ASK
+Paid SMM/proxy/Apify spend, real TikTok credentials, Content Posting API audit, legal/ToS decisions, destructive DB operations.
+
+START WITH Phase 0, task R0.1. Write the failing test, run it, report RED, then fix.
