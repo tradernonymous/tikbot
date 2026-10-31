@@ -58,6 +58,32 @@ describe('Config Loader (Zod Validation)', () => {
     expect(loadConfig({ ...baseEnv, KILL_SWITCH_ACTIVE: '0' }).KILL_SWITCH_ACTIVE).toBe(false);
   });
 
+  it('throws in production when MASTER_ENCRYPTION_KEY or SESSION_SECRET are missing', () => {
+    expect(() =>
+      loadConfig({
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgresql://postgres:pass@localhost:5432/tikbot',
+      })
+    ).toThrowError(/MASTER_ENCRYPTION_KEY|SESSION_SECRET/);
+
+    process.env.NODE_ENV = 'production';
+    expect(() => loadConfig({})).toThrowError();
+  });
+
+  it('succeeds in development when keys are missing by generating ephemeral values', () => {
+    process.env.NODE_ENV = 'development';
+    const configFromEmpty = loadConfig({});
+    expect(configFromEmpty.MASTER_ENCRYPTION_KEY).toHaveLength(64);
+    expect(configFromEmpty.SESSION_SECRET.length).toBeGreaterThanOrEqual(32);
+
+    const config = loadConfig({
+      NODE_ENV: 'development',
+    });
+    expect(config.MASTER_ENCRYPTION_KEY).toHaveLength(64);
+    expect(config.SESSION_SECRET.length).toBeGreaterThanOrEqual(32);
+    expect(config.DATABASE_URL).toBeDefined();
+  });
+
   it('returns cached config or loads it automatically when getConfig is called', async () => {
     process.env = {
       ...process.env,

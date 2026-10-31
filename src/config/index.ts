@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import crypto from 'node:crypto';
 
 const configSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -31,18 +32,22 @@ export type AppConfig = z.infer<typeof configSchema>;
 let cachedConfig: AppConfig | null = null;
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
-  let envToParse = env;
-  if (env === process.env) {
-    if (!process.env.MASTER_ENCRYPTION_KEY) {
-      process.env.MASTER_ENCRYPTION_KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  const envToParse: Record<string, string | undefined> = { ...env };
+  const nodeEnv = envToParse.NODE_ENV || process.env.NODE_ENV || 'development';
+
+  if (nodeEnv === 'development') {
+    // In development, generate ephemeral values with loud warnings if missing
+    if (!envToParse.MASTER_ENCRYPTION_KEY) {
+      console.warn('[SECURITY WARNING] MASTER_ENCRYPTION_KEY missing in development. Generating ephemeral key.');
+      envToParse.MASTER_ENCRYPTION_KEY = crypto.randomBytes(32).toString('hex');
     }
-    if (!process.env.SESSION_SECRET) {
-      process.env.SESSION_SECRET = 'tikbot-session-secret-production-safe-key-at-least-32-chars';
+    if (!envToParse.SESSION_SECRET) {
+      console.warn('[SECURITY WARNING] SESSION_SECRET missing in development. Generating ephemeral secret.');
+      envToParse.SESSION_SECRET = crypto.randomBytes(32).toString('hex');
     }
-    if (!process.env.DATABASE_URL) {
-      process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/tikbot';
+    if (!envToParse.DATABASE_URL) {
+      envToParse.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/tikbot';
     }
-    envToParse = process.env;
   }
 
   const result = configSchema.safeParse(envToParse);
