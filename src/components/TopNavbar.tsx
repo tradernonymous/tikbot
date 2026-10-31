@@ -21,13 +21,15 @@ import {
   Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useOperations } from '@/context/OperationsContext';
 import { NotificationCenter } from '@/components/NotificationCenter';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
 
 export function TopNavbar() {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const {
     killSwitchActive,
     toggleKillSwitch,
@@ -35,6 +37,7 @@ export function TopNavbar() {
     clearNotifications,
     accounts,
     campaigns,
+    publishJobs,
     researchedPosts,
   } = useOperations();
 
@@ -125,11 +128,11 @@ export function TopNavbar() {
       <header className="h-16 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-xl px-6 flex items-center justify-between sticky top-0 z-40">
         {/* Left Section: Breadcrumb & Safe Mode Indicator */}
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-slate-400">Dashboard</span>
-            <span className="text-slate-400">/</span>
-            <span className="text-white font-semibold">{getBreadcrumb()}</span>
-          </div>
+          <Breadcrumbs
+            pathname={pathname}
+            searchParams={searchParams}
+            contextData={{ campaigns, accounts, publishJobs }}
+          />
 
           <div className="h-4 w-px bg-slate-800 hidden sm:block" />
 

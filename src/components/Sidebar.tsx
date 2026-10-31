@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -15,13 +15,47 @@ import {
 } from 'lucide-react';
 import { useOperations } from '@/context/OperationsContext';
 
-export function Sidebar() {
+export interface SidebarCounts {
+  total: number;
+  approvals: number;
+  incidents: number;
+  research: number;
+  system: number;
+}
+
+export function Sidebar({ serverCounts }: { serverCounts?: SidebarCounts }) {
   const pathname = usePathname();
   const { campaigns, farmTasks, publishJobs, accounts, researchedPosts } = useOperations();
+  const [counts, setCounts] = useState<SidebarCounts>(
+    serverCounts || {
+      total: 0,
+      approvals: 0,
+      incidents: 0,
+      research: 0,
+      system: 0,
+    }
+  );
 
-  const pendingCampaigns = campaigns.filter((c) => c.status === 'PENDING_APPROVAL').length;
-  const pendingPublish = publishJobs.filter((p) => p.status === 'PENDING_APPROVAL').length;
-  const totalPending = pendingCampaigns + pendingPublish;
+  useEffect(() => {
+    if (serverCounts) {
+      setCounts(serverCounts);
+      return;
+    }
+    const fetchCounts = () => {
+      fetch('/api/v1/notifications/counts')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.counts) {
+            setCounts(data.counts);
+          }
+        })
+        .catch(() => {});
+    };
+    fetchCounts();
+    const interval = setInterval(fetchCounts, 15000);
+    return () => clearInterval(interval);
+  }, [serverCounts]);
+
   const runningTasks = farmTasks.filter((t) => t.status === 'RUNNING').length;
   const activeAccounts = accounts.filter((a) => a.status === 'ACTIVE').length;
 
@@ -30,14 +64,14 @@ export function Sidebar() {
       name: 'Overview',
       href: '/dashboard',
       icon: LayoutDashboard,
-      badge: totalPending > 0 ? `${totalPending} due` : undefined,
+      badge: counts.total > 0 ? `${counts.total} alerts` : undefined,
       badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
     },
     {
       name: 'Research Intelligence',
       href: '/dashboard/research',
       icon: Search,
-      badge: `${researchedPosts.length} posts`,
+      badge: counts.research > 0 ? `${counts.research} alerts` : undefined,
       badgeColor: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
     },
     {
@@ -51,7 +85,7 @@ export function Sidebar() {
       name: 'Engagement Campaigns',
       href: '/dashboard/campaigns',
       icon: Flame,
-      badge: pendingCampaigns > 0 ? `${pendingCampaigns} pending` : undefined,
+      badge: counts.approvals > 0 ? `${counts.approvals} pending` : undefined,
       badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
     },
     {
@@ -72,8 +106,8 @@ export function Sidebar() {
       name: 'Compliance & Audit',
       href: '/dashboard/compliance',
       icon: ShieldCheck,
-      badge: 'Strict',
-      badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+      badge: counts.incidents > 0 ? `${counts.incidents} alerts` : 'Strict',
+      badgeColor: counts.incidents > 0 ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     },
     {
       name: 'Settings',
