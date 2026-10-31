@@ -20,7 +20,7 @@ const navigation = [
   { name: 'Farm Accounts', href: '/dashboard/accounts', icon: Users },
   { name: 'Engagement Campaigns', href: '/dashboard/campaigns', icon: Flame },
   { name: 'Content & Publishing', href: '/dashboard/publishing', icon: Calendar },
-  { name: 'SMM Catalog & Orders', href: '/dashboard/panel', icon: Layers },
+  { name: 'Farm Services & Launch', href: '/dashboard/panel', icon: Layers },
   { name: 'Compliance & Audit', href: '/dashboard/compliance', icon: ShieldCheck },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
