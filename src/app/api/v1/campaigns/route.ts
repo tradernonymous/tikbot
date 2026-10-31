@@ -7,6 +7,7 @@ import {
   updateCampaignStatus,
   deleteCampaign,
 } from '@/repositories/campaigns.repository';
+import { globalNotificationService } from '@/notifications/service';
 
 export const dynamic = 'force-dynamic';
 
@@ -103,6 +104,13 @@ export async function PATCH(req: NextRequest) {
     }
 
     const success = await updateCampaignStatus(parseResult.data.id, parseResult.data.status);
+    if (success && (parseResult.data.status === 'APPROVED' || parseResult.data.status === 'REJECTED')) {
+      await globalNotificationService.emitCampaignEvent(
+        parseResult.data.id,
+        parseResult.data.status,
+        parseResult.data.id
+      ).catch(() => {});
+    }
     const res = NextResponse.json({ success });
     return handleSessionRefresh(auth, res);
   } catch (err: any) {

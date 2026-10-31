@@ -6,6 +6,7 @@ import { globalKillSwitch, getPersistedKillSwitch } from './security/kill-switch
 import { runStealthViewSession } from './farm/stealth-runner';
 import { ContentPublisher, UploaderDriver, PublisherNotConfiguredError } from './content/publisher';
 import { DouyinTikTokClient } from './research/download-api-client';
+import { globalNotificationService } from './notifications/service';
 
 let configuredUploaderDriver: UploaderDriver | null = null;
 let configuredDouyinTikTokClient: DouyinTikTokClient = new DouyinTikTokClient();
@@ -145,9 +146,13 @@ export async function processNextJob(queue: JobQueueEngine, workerId: string): P
     }
 
     await queue.completeJob(job.id);
+    if (job.name === 'publish.upload') {
+      await globalNotificationService.emitPublishResult(job.id, true, 'Video upload completed').catch(() => {});
+    }
     return true;
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
+    await globalNotificationService.emitTaskFailure(job.id, errorMsg).catch(() => {});
     await queue.failJob(job.id, errorMsg);
     return true;
   } finally {

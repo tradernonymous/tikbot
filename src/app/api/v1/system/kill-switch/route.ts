@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPersistedKillSwitch, setPersistedKillSwitch } from '@/security/kill-switch';
 import { requireSession } from '@/security/auth';
+import { globalNotificationService } from '@/notifications/service';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,7 @@ export async function POST(request: NextRequest) {
       reason,
       operatorId || auth.session.userId || 'admin-operator'
     );
+    await globalNotificationService.emitKillSwitchEvent(active, reason).catch(() => {});
     return NextResponse.json(state, { status: 200 });
   } catch (err) {
     return NextResponse.json(
