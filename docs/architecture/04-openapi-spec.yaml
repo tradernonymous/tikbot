@@ -1,0 +1,494 @@
+openapi: 3.1.0
+info:
+  title: Tikbot Operational API
+  version: 1.0.0
+  description: Single-operator management API for TikTok research, content archiving, managed farm orchestration, and engagement campaigns.
+servers:
+  - url: /api/v1
+    description: Internal Next.js App API Router
+
+paths:
+  /auth/login:
+    post:
+      summary: Operator Authentication
+      operationId: loginOperator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Session created successfully
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        '401':
+          description: Invalid master password
+
+  /system/kill-switch:
+    get:
+      summary: Get kill switch status
+      operationId: getKillSwitchStatus
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KillSwitchStatus'
+    post:
+      summary: Trigger or reset global kill switch
+      operationId: setKillSwitchStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [active, reason]
+              properties:
+                active:
+                  type: boolean
+                reason:
+                  type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KillSwitchStatus'
+
+  /research/runs:
+    get:
+      summary: List research runs
+      operationId: listResearchRuns
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, RUNNING, COMPLETED, FAILED]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ResearchRun'
+    post:
+      summary: Create new research run
+      operationId: createResearchRun
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateResearchRunInput'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResearchRun'
+
+  /research/runs/{id}:
+    get:
+      summary: Get research run details and results
+      operationId: getResearchRun
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResearchRun'
+        '404':
+          description: Research run not found
+
+  /posts:
+    get:
+      summary: Search and list archived posts
+      operationId: listPosts
+      parameters:
+        - name: authorHandle
+          in: query
+          schema:
+            type: string
+        - name: isOutlier
+          in: query
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ArchivedPost'
+
+  /posts/{id}:
+    get:
+      summary: Get archived post details including metrics and transcript
+      operationId: getPostById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArchivedPost'
+
+  /accounts:
+    get:
+      summary: List managed farm platform accounts
+      operationId: listAccounts
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [CREATED, WARMING, ACTIVE, COOLDOWN, RESTRICTED, BANNED]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlatformAccount'
+    post:
+      summary: Register or import platform account
+      operationId: createAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAccountInput'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformAccount'
+
+  /campaigns:
+    get:
+      summary: List engagement campaigns
+      operationId: listCampaigns
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [DRAFT, PENDING_APPROVAL, APPROVED, REJECTED, RUNNING, PAUSED, COMPLETED]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Campaign'
+    post:
+      summary: Create new engagement campaign (defaults to PENDING_APPROVAL)
+      operationId: createCampaign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCampaignInput'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campaign'
+
+  /campaigns/{id}/approval:
+    post:
+      summary: Approve or reject an engagement campaign
+      operationId: reviewCampaign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [APPROVE, REJECT]
+                notes:
+                  type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Campaign'
+
+  /orders:
+    get:
+      summary: List panel orders
+      operationId: listOrders
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+    post:
+      summary: Create internal/external SMM order
+      operationId: createOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderInput'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+components:
+  schemas:
+    KillSwitchStatus:
+      type: object
+      required: [active, updatedAt]
+      properties:
+        active:
+          type: boolean
+        reason:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        updatedBy:
+          type: string
+
+    ResearchRun:
+      type: object
+      required: [id, type, target, status, createdAt]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [CREATOR_PROFILE, KEYWORD_FEED, HASHTAG_FEED, SOUND_FEED, COMPETITOR_AUDIT]
+        target:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, RUNNING, COMPLETED, FAILED]
+        metrics:
+          type: object
+        resultsSummary:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateResearchRunInput:
+      type: object
+      required: [type, target]
+      properties:
+        type:
+          type: string
+          enum: [CREATOR_PROFILE, KEYWORD_FEED, HASHTAG_FEED, SOUND_FEED, COMPETITOR_AUDIT]
+        target:
+          type: string
+        maxPosts:
+          type: integer
+          default: 50
+        includeTranscripts:
+          type: boolean
+          default: true
+
+    ArchivedPost:
+      type: object
+      required: [id, platformId, authorHandle, caption, viewCount, likeCount]
+      properties:
+        id:
+          type: string
+        platformId:
+          type: string
+        authorHandle:
+          type: string
+        caption:
+          type: string
+        publishedAt:
+          type: string
+          format: date-time
+        viewCount:
+          type: integer
+        likeCount:
+          type: integer
+        commentCount:
+          type: integer
+        shareCount:
+          type: integer
+        outlierScore:
+          type: number
+        transcript:
+          type: string
+        mediaStorageKey:
+          type: string
+
+    PlatformAccount:
+      type: object
+      required: [id, platform, username, status, proxyId]
+      properties:
+        id:
+          type: string
+        platform:
+          type: string
+          enum: [TIKTOK, DOUYIN, INSTAGRAM]
+        username:
+          type: string
+        status:
+          type: string
+          enum: [CREATED, WARMING, ACTIVE, COOLDOWN, RESTRICTED, BANNED]
+        healthScore:
+          type: integer
+        proxyId:
+          type: string
+        actionsToday:
+          type: integer
+        dailyCap:
+          type: integer
+        lastActiveAt:
+          type: string
+          format: date-time
+
+    CreateAccountInput:
+      type: object
+      required: [platform, username]
+      properties:
+        platform:
+          type: string
+          enum: [TIKTOK, DOUYIN, INSTAGRAM]
+        username:
+          type: string
+        encryptedPassword:
+          type: string
+        encryptedCookies:
+          type: string
+        proxyId:
+          type: string
+
+    Campaign:
+      type: object
+      required: [id, title, targetUrl, actionType, targetCount, status]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        targetUrl:
+          type: string
+        actionType:
+          type: string
+          enum: [LIKE, COMMENT, SAVE, SHARE, LIVE_VIEW]
+        targetCount:
+          type: integer
+        executedCount:
+          type: integer
+        status:
+          type: string
+          enum: [DRAFT, PENDING_APPROVAL, APPROVED, REJECTED, RUNNING, PAUSED, COMPLETED]
+        approvalRequired:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateCampaignInput:
+      type: object
+      required: [title, targetUrl, actionType, targetCount]
+      properties:
+        title:
+          type: string
+        targetUrl:
+          type: string
+        actionType:
+          type: string
+          enum: [LIKE, COMMENT, SAVE, SHARE, LIVE_VIEW]
+        targetCount:
+          type: integer
+        customComments:
+          type: array
+          items:
+            type: string
+        scheduleAt:
+          type: string
+          format: date-time
+
+    Order:
+      type: object
+      required: [id, serviceId, targetLink, quantity, status]
+      properties:
+        id:
+          type: string
+        serviceId:
+          type: string
+        targetLink:
+          type: string
+        quantity:
+          type: integer
+        status:
+          type: string
+          enum: [PENDING, PROCESSING, IN_PROGRESS, COMPLETED, CANCELLED]
+        providerId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateOrderInput:
+      type: object
+      required: [serviceId, targetLink, quantity]
+      properties:
+        serviceId:
+          type: string
+        targetLink:
+          type: string
+        quantity:
+          type: integer
