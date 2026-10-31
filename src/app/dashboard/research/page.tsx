@@ -29,15 +29,44 @@ import {
   Radio,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function ResearchPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlTab = searchParams ? searchParams.get('tab') : null;
+  const urlMult = searchParams ? searchParams.get('multiplier') : null;
+  const initialTab =
+    urlTab?.toUpperCase() === 'VOC'
+      ? 'VOC'
+      : urlTab?.toUpperCase() === 'OSINT'
+      ? 'OSINT'
+      : 'ANALYZE';
+  const initialMult = urlMult ? parseFloat(urlMult) : 0;
+
   const { researchedPosts, addResearchedPost } = useOperations();
 
-  const [activeSubTab, setActiveSubTab] = useState<'ANALYZE' | 'VOC' | 'OSINT'>('ANALYZE');
+  const [activeSubTab, setActiveSubTab] = useState<'ANALYZE' | 'VOC' | 'OSINT'>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedMultiplier, setSelectedMultiplier] = useState<number>(0);
+  const [selectedMultiplier, setSelectedMultiplier] = useState<number>(initialMult);
+
+  const handleTabChange = (tab: 'ANALYZE' | 'VOC' | 'OSINT') => {
+    setActiveSubTab(tab);
+    const params = new URLSearchParams(searchParams ? searchParams.toString() : '');
+    params.set('tab', tab.toLowerCase());
+    router.replace(`?${params.toString()}`, { scroll: false });
+  };
+
+  const handleMultiplierChange = (mult: number) => {
+    setSelectedMultiplier(mult);
+    const params = new URLSearchParams(searchParams ? searchParams.toString() : '');
+    if (mult > 0) {
+      params.set('multiplier', mult.toString());
+    } else {
+      params.delete('multiplier');
+    }
+    router.replace(`?${params.toString()}`, { scroll: false });
+  };
 
   // Video Analyzer State
   const [analyzingUrl, setAnalyzingUrl] = useState('');
@@ -241,7 +270,7 @@ export default function ResearchPage() {
       {/* Sub-Tabs Selector */}
       <div className="flex border-b border-slate-800 gap-2">
         <button
-          onClick={() => setActiveSubTab('ANALYZE')}
+          onClick={() => handleTabChange('ANALYZE')}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-medium border-b-2 transition-colors ${
             activeSubTab === 'ANALYZE'
               ? 'border-cyan-500 text-cyan-400'
@@ -252,7 +281,7 @@ export default function ResearchPage() {
           <span>Video & Hook Analyzer</span>
         </button>
         <button
-          onClick={() => setActiveSubTab('VOC')}
+          onClick={() => handleTabChange('VOC')}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-medium border-b-2 transition-colors ${
             activeSubTab === 'VOC'
               ? 'border-cyan-500 text-cyan-400'
@@ -263,7 +292,7 @@ export default function ResearchPage() {
           <span>VOC Comment Mining</span>
         </button>
         <button
-          onClick={() => setActiveSubTab('OSINT')}
+          onClick={() => handleTabChange('OSINT')}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-medium border-b-2 transition-colors ${
             activeSubTab === 'OSINT'
               ? 'border-cyan-500 text-cyan-400'
@@ -552,7 +581,7 @@ export default function ResearchPage() {
             {[0, 2.0, 3.0, 4.0].map((mult) => (
               <button
                 key={mult}
-                onClick={() => setSelectedMultiplier(mult)}
+                onClick={() => handleMultiplierChange(mult)}
                 className={`px-2 py-0.5 rounded text-[11px] transition-colors ${
                   selectedMultiplier === mult
                     ? 'bg-cyan-600 text-white font-semibold'
@@ -611,17 +640,28 @@ export default function ResearchPage() {
                     className="text-[11px] text-slate-400 hover:text-indigo-300 flex items-center gap-1 transition-colors"
                   >
                     <FileText className="w-3 h-3 text-slate-500" />
-                    <span>Repurpose Hook</span>
+                    <span>Repurpose</span>
                   </button>
-                  <button
-                    onClick={() => {
-                      const dummyUrl = `https://www.tiktok.com/@${post.authorHandle}/video/${post.platformPostId}`;
-                      router.push(`/dashboard/panel?targetUrl=${encodeURIComponent(dummyUrl)}&service=VIEW`);
-                    }}
-                    className="text-cyan-400 hover:text-cyan-300 text-[11px] font-medium flex items-center gap-1"
-                  >
-                    <span>Farm Boost &rarr;</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/dashboard/campaigns?targetUrl=${encodeURIComponent(
+                        `https://www.tiktok.com/@${post.authorHandle}/video/${post.platformPostId}`
+                      )}&actionType=LIKE`}
+                      className="text-cyan-400 hover:text-cyan-300 text-[11px] font-medium flex items-center gap-1"
+                    >
+                      <Flame className="w-3 h-3 text-amber-400" />
+                      <span>Run Campaign &rarr;</span>
+                    </Link>
+                    <button
+                      onClick={() => {
+                        const dummyUrl = `https://www.tiktok.com/@${post.authorHandle}/video/${post.platformPostId}`;
+                        router.push(`/dashboard/panel?targetUrl=${encodeURIComponent(dummyUrl)}&service=VIEW`);
+                      }}
+                      className="text-slate-400 hover:text-slate-200 text-[11px] font-medium flex items-center gap-1"
+                    >
+                      <span>Boost</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
