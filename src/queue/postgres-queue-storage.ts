@@ -26,12 +26,25 @@ export class PostgresQueueStorage implements QueueStorageAdapter {
         lockedAt: jobData.lockedAt,
         lockedBy: jobData.lockedBy,
         lastError: jobData.lastError,
+        deadLetterReason: jobData.deadLetterReason,
+        idempotencyKey: jobData.idempotencyKey,
       },
     });
 
     return {
       ...created,
       payload: (created.payload as Record<string, unknown>) ?? {},
+    };
+  }
+
+  async findByIdempotencyKey(key: string): Promise<JobRecord | null> {
+    const job = await prisma.job.findUnique({
+      where: { idempotencyKey: key },
+    });
+    if (!job) return null;
+    return {
+      ...job,
+      payload: (job.payload as Record<string, unknown>) ?? {},
     };
   }
 
@@ -150,6 +163,7 @@ export class PostgresQueueStorage implements QueueStorageAdapter {
     if (updates.lockedBy !== undefined) data.lockedBy = updates.lockedBy;
     if (updates.attempts !== undefined) data.attempts = updates.attempts;
     if (updates.lastError !== undefined) data.lastError = updates.lastError;
+    if (updates.deadLetterReason !== undefined) data.deadLetterReason = updates.deadLetterReason;
     if (updates.payload !== undefined) data.payload = updates.payload as Prisma.InputJsonValue;
 
     const updated = await prisma.job.update({

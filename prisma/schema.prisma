@@ -40,6 +40,7 @@ enum JobStatus {
   COMPLETED
   FAILED
   CANCELLED
+  DEAD_LETTER
 }
 
 enum ApprovalStatus {
@@ -150,22 +151,25 @@ model MediaAsset {
 }
 
 model Job {
-  id          String    @id @default(cuid())
-  name        String
-  payload     Json
-  status      JobStatus @default(PENDING)
-  priority    Int       @default(0)
-  runAt       DateTime  @default(now())
-  lockedAt    DateTime?
-  lockedBy    String?
-  attempts    Int       @default(0)
-  maxAttempts Int       @default(3)
-  lastError   String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id               String     @id @default(cuid())
+  name             String
+  payload          Json
+  status           JobStatus  @default(PENDING)
+  priority         Int        @default(0)
+  runAt            DateTime   @default(now())
+  lockedAt         DateTime?
+  lockedBy         String?
+  attempts         Int        @default(0)
+  maxAttempts      Int        @default(3)
+  lastError        String?
+  deadLetterReason String?
+  idempotencyKey   String?    @unique
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
 
   @@index([status, runAt, priority])
   @@index([lockedAt])
+  @@index([idempotencyKey])
 }
 
 model AuditLog {

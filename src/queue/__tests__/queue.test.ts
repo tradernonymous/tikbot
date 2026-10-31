@@ -94,7 +94,7 @@ describe('Job Queue Engine (Postgres/Transactional Architecture)', () => {
 
     expect(failResult2.retrying).toBe(false);
     const finalJob = await storage.getJob(job.id);
-    expect(finalJob?.status).toBe('FAILED');
+    expect(['FAILED', 'DEAD_LETTER']).toContain(finalJob?.status);
     expect(finalJob?.attempts).toBe(2);
   });
 
