@@ -18,7 +18,7 @@ const configSchema = z.object({
   S3_BUCKET: z.string().optional(),
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
-  INTERNAL_API_SECRET: z.string().default('tikbot-internal-secret-change-in-prod'),
+  INTERNAL_API_SECRET: z.string().min(16, 'INTERNAL_API_SECRET must be at least 16 characters'),
   PYTHON_SIDECAR_URL: z.string().default('http://localhost:8000'),
   KILL_SWITCH_ACTIVE: z
     .union([z.boolean(), z.enum(['true', 'false', '1', '0'])])
@@ -44,6 +44,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     if (!envToParse.SESSION_SECRET) {
       console.warn('[SECURITY WARNING] SESSION_SECRET missing in development. Generating ephemeral secret.');
       envToParse.SESSION_SECRET = crypto.randomBytes(32).toString('hex');
+    }
+    if (!envToParse.INTERNAL_API_SECRET) {
+      console.warn('[SECURITY WARNING] INTERNAL_API_SECRET missing in development. Generating ephemeral secret.');
+      envToParse.INTERNAL_API_SECRET = crypto.randomBytes(32).toString('hex');
     }
     if (!envToParse.DATABASE_URL) {
       envToParse.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/tikbot';

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'node:crypto';
 import { getConfig } from '@/config';
 
 export const dynamic = 'force-dynamic';
@@ -17,13 +18,28 @@ export type WebhookJobCallback = (
   error?: string
 ) => Promise<boolean>;
 
+function timingSafeSecretCompare(
+  provided: string | null | undefined,
+  expected: string | null | undefined
+): boolean {
+  if (!provided || !expected) {
+    return false;
+  }
+  const bufA = Buffer.from(provided, 'utf-8');
+  const bufB = Buffer.from(expected, 'utf-8');
+  if (bufA.length !== bufB.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
 export async function handleJobWebhook(
   payload: WebhookJobPayload,
   providedSecret: string | null,
   expectedSecret: string,
   callback?: WebhookJobCallback
 ): Promise<{ status: number; body: { success?: boolean; error?: string } }> {
-  if (!providedSecret || providedSecret !== expectedSecret) {
+  if (!expectedSecret || !providedSecret || !timingSafeSecretCompare(providedSecret, expectedSecret)) {
     return { status: 401, body: { error: 'Unauthorized webhook request' } };
   }
 

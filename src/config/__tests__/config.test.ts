@@ -20,6 +20,7 @@ describe('Config Loader (Zod Validation)', () => {
       MASTER_ENCRYPTION_KEY: 'too-short-key',
       OPERATOR_PASSWORD_HASH: '$argon2id$v=19$m=65536,t=3,p=4$somehash',
       SESSION_SECRET: 'super-secret-session-key-minimum-32-chars-long',
+      INTERNAL_API_SECRET: 'super-internal-api-secret-16-chars',
     };
     expect(() => loadConfig(invalidEnv)).toThrowError(/64-character/);
   });
@@ -32,6 +33,7 @@ describe('Config Loader (Zod Validation)', () => {
       MASTER_ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
       OPERATOR_PASSWORD_HASH: '$argon2id$v=19$m=65536,t=3,p=4$validhash',
       SESSION_SECRET: 'super-secret-session-key-minimum-32-chars-long',
+      INTERNAL_API_SECRET: 'super-internal-api-secret-16-chars',
       STORAGE_DRIVER: 'local',
     };
 
@@ -50,6 +52,7 @@ describe('Config Loader (Zod Validation)', () => {
       MASTER_ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
       OPERATOR_PASSWORD_HASH: '$argon2id$v=19$m=65536,t=3,p=4$validhash',
       SESSION_SECRET: 'super-secret-session-key-minimum-32-chars-long',
+      INTERNAL_API_SECRET: 'super-internal-api-secret-16-chars',
     };
 
     expect(loadConfig({ ...baseEnv, KILL_SWITCH_ACTIVE: 'true' }).KILL_SWITCH_ACTIVE).toBe(true);
@@ -75,12 +78,14 @@ describe('Config Loader (Zod Validation)', () => {
     const configFromEmpty = loadConfig({});
     expect(configFromEmpty.MASTER_ENCRYPTION_KEY).toHaveLength(64);
     expect(configFromEmpty.SESSION_SECRET.length).toBeGreaterThanOrEqual(32);
+    expect(configFromEmpty.INTERNAL_API_SECRET.length).toBeGreaterThanOrEqual(16);
 
     const config = loadConfig({
       NODE_ENV: 'development',
     });
     expect(config.MASTER_ENCRYPTION_KEY).toHaveLength(64);
     expect(config.SESSION_SECRET.length).toBeGreaterThanOrEqual(32);
+    expect(config.INTERNAL_API_SECRET.length).toBeGreaterThanOrEqual(16);
     expect(config.DATABASE_URL).toBeDefined();
   });
 
@@ -92,6 +97,7 @@ describe('Config Loader (Zod Validation)', () => {
       MASTER_ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
       OPERATOR_PASSWORD_HASH: '$argon2id$v=19$m=65536,t=3,p=4$validhash',
       SESSION_SECRET: 'super-secret-session-key-minimum-32-chars-long',
+      INTERNAL_API_SECRET: 'super-internal-api-secret-16-chars',
     };
 
     // dynamically reimport to test initial getConfig() branch
