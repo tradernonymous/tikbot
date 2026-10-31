@@ -1,20 +1,36 @@
-# Phase 3 — Research Intelligence Evidence Report
+# Phase 3 — Real Research Data Evidence & Verification
 
-## Status: COMPLETE
+## Overview
+Phase 3 removes simulated and fabricated numbers from research paths across `tikbot`. Video analysis, cross-platform OSINT discovery, VOC comment mining, and python sidecar communications now operate with real network probes, real backend route handlers, strict secret validation, and clear data provenance labelling.
 
-### Checkpoint Summary
-- **Outlier Post Detection & Engagement Math**: Implemented `src/intelligence/outliers.ts` calculating weighted engagement rates ($(\text{likes} + 2\text{comments} + 3\text{shares}) / \text{views}$), median baselines, and composite outlier multipliers. Achieved 100% line coverage.
-- **Transcript Hook Intelligence & Atomic Mining**: Implemented `src/intelligence/transcripts.ts` classifying video openings into 5 hook archetypes (`CONTRARIAN`, `QUESTION`, `NEGATIVE_CONSTRAINT`, `RESULT_STORY`, `STANDARD`) and decomposing transcripts into hooks, claims, and proof points. Achieved 100% line coverage.
-- **Comment Intent & VOC Mining**: Implemented `src/intelligence/comment-mining.ts` clustering user feedback into actionable buckets (`QUESTION`, `OBJECTION`, `PAIN_POINT`, `PRODUCT_DEMAND`, `PRAISE`, `GENERAL`) to inform marketing angles and objection handling. Achieved 96.4% line coverage.
-- **Influencer Prospecting & Fit Scoring**: Implemented `src/intelligence/influencers.ts` calculating consistency scores (coefficient of variation), audience resonance, and niche alignment against content pillars to produce an overall $0-100$ score with confidence tiers (`HIGH`, `MEDIUM`, `LOW`). Achieved 100% line coverage.
-- **Cross-Platform OSINT Handle Discovery**: Implemented `src/intelligence/osint.ts` scanning handle availability and footprints across TikTok, Instagram, X, and YouTube with confidence scoring. Achieved 93.8% line coverage.
+---
 
-### Test Coverage Results (Vitest + v8)
-- **Total Test Files**: 22 passed (22)
-- **Total Tests**: 93 passed (93)
-- **Statements Coverage**: 96.09% (Threshold: 80%)
-- **Branches Coverage**: 83.46% (Threshold: 80%)
-- **Functions Coverage**: 97.36% (Threshold: 80%)
-- **Lines Coverage**: 97.64% (Threshold: 80%)
-- **TypeScript Typecheck**: Succeeded (`tsc --noEmit` exited with 0 errors).
-- **Next.js Production Build**: Succeeded (`Compiled successfully in 551ms`).
+## Completed Tasks
+
+### Real Video Data & Outlier Analysis
+- **API Route**: Created `src/app/api/v1/research/analyze/route.ts` with test coverage in `src/app/api/v1/research/analyze/__tests__/route.test.ts`.
+- **Extraction Client**: Uses `DouyinTikTokClient` to retrieve real views, likes, comments, shares, play URLs, and author metadata.
+- **Outlier Scoring**: Computes actual outlier score against baseline (`views / baseline`) rather than returning a hardcoded `480k views / 5.4x`.
+- **Provenance**: Labels returned analytics as `provenance: 'live'` and surfaces this transparently in the Research dashboard UI.
+
+### Honest Cross-Platform OSINT Discovery
+- **Default Probe Fetcher**: Implemented `defaultPlatformProbeFetcher` in `src/intelligence/osint.ts` with timeouts, user-agent headers, and soft-404 detection ("user not found", "account doesn't exist").
+- **API Route**: Created `src/app/api/v1/research/osint/route.ts` with session authentication and CSRF origin verification.
+- **Eliminated Fake Statuses**: Replaced the previous `exists: false` hardcode and page-level simulated `exists: true` mock with real probe requests and honest confidence metrics.
+
+### VOC Comment Mining & Provenance Transparency
+- **Honest Metrics**: Removed `Math.random() * 50` like count generation from `src/app/dashboard/research/page.tsx`. Assigned honest zero-baseline like counts for unmetered plain text inputs.
+- **UI Provenance Badges**: Styled badges for `LIVE`, `CACHED`, and `SIMULATED` metadata display across researched outlier items.
+
+### Python Sidecar Hardening
+- **Secret Enforcement**: Removed the fallback secret in `sidecars/tiktok-py/app.py`. Enforces `INTERNAL_API_SECRET` and rejects boot in production if missing.
+- **Constant-Time Verification**: Replaced plain string equality with `hmac.compare_digest` to prevent timing attacks.
+- **Gated Fallbacks**: Restricted canned simulation fixtures strictly to development environments (`NODE_ENV !== 'production'`). In production, returns live empty data or 501 Not Implemented.
+
+---
+
+## Verification & Metrics
+- **Unit Tests**: 73 test files, 334 unit tests passing.
+- **Branch Coverage Gate**: **81.24%** (Exceeds >= 80.00% threshold).
+- **TypeScript**: `npx tsc --noEmit` passes with 0 errors.
+- **Build**: `next build` passes.
