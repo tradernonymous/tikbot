@@ -55,6 +55,7 @@ export default function ResearchPage() {
     claims: string[];
     atoms: any[];
     downloadUrl: string;
+    provenance?: string;
   } | null>(null);
 
   // VOC Comment Miner State
@@ -69,94 +70,87 @@ export default function ResearchPage() {
   const [osintResults, setOsintResults] = useState<OsintProbeResult[] | null>(null);
   const [isScanningOsint, setIsScanningOsint] = useState(false);
 
-  // Handle URL Video Analysis
-  const handleAnalyze = (e: React.FormEvent) => {
+  // Handle URL Video Analysis with real backend route (P7)
+  const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!analyzingUrl) return;
 
     setIsAnalyzing(true);
-    setTimeout(() => {
-      let parsedAuthor = 'growth_creator';
-      try {
-        const parsed = parseAndNormalizeSocialUrl(analyzingUrl);
-        if (parsed.authorHandle) parsedAuthor = parsed.authorHandle;
-      } catch {}
+    try {
+      const res = await fetch('/api/v1/research/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: analyzingUrl }),
+      });
+      const data = await res.json();
+      if (data.success && data.result) {
+        setAnalysisResult({
+          ...data.result,
+          provenance: data.provenance || 'live',
+        });
 
-      const sampleTranscript =
-        'Stop posting 60-second clips before you watch this 3-second hook framework. ' +
-        'Because TikTok algorithms dictate retention in the first 2.8 seconds. ' +
-        'We tested 40 variations and outlier reach spiked by 420% when opening with a negative constraint. ' +
-        'Apply this in your next script today.';
-
-      const transcriptAnalysis = analyzeTranscript(sampleTranscript);
-
-      const result = {
-        author: parsedAuthor,
-        caption: 'The single 45-second retention habit that blew up our profile in 14 days #growth #content',
-        outlierScore: 5.4,
-        views: 480000,
-        likes: 62000,
-        comments: 2450,
-        shares: 8900,
-        hookText: transcriptAnalysis.hookText,
-        hookType: transcriptAnalysis.hookType,
-        claims: transcriptAnalysis.claims,
-        atoms: transcriptAnalysis.atoms,
-        downloadUrl: 'https://download-api.tikbot.internal/video/hd_no_watermark.mp4',
-      };
-
-      setAnalysisResult(result);
+        // Auto-save to researched outliers in global context
+        const newPost: ResearchedPost = {
+          id: `post-${Date.now().toString().slice(-4)}`,
+          platformPostId: Date.now().toString().slice(-8),
+          authorHandle: data.result.author,
+          caption: data.result.caption,
+          viewCount: data.result.views,
+          likeCount: data.result.likes,
+          commentCount: data.result.comments,
+          shareCount: data.result.shares,
+          outlierScore: data.result.outlierScore,
+          hookText: data.result.hookText,
+          downloadUrl: data.result.downloadUrl,
+        };
+        addResearchedPost(newPost);
+      } else {
+        alert(data.error || 'Failed to analyze video');
+      }
+    } catch (err: any) {
+      alert(`Network error during analysis: ${err.message}`);
+    } finally {
       setIsAnalyzing(false);
-
-      // Auto-save to researched outliers in global context
-      const newPost: ResearchedPost = {
-        id: `post-${Date.now().toString().slice(-4)}`,
-        platformPostId: Date.now().toString().slice(-8),
-        authorHandle: result.author,
-        caption: result.caption,
-        viewCount: result.views,
-        likeCount: result.likes,
-        commentCount: result.comments,
-        shareCount: result.shares,
-        outlierScore: result.outlierScore,
-        hookText: result.hookText,
-        downloadUrl: result.downloadUrl,
-      };
-      addResearchedPost(newPost);
-    }, 1000);
+    }
   };
 
-  // Handle VOC Comment Mining
+  // Handle VOC Comment Mining (honest, un-fabricated data per P7)
   const handleMineVoc = () => {
     setIsMiningVoc(true);
-    setTimeout(() => {
-      const lines = vocCommentsInput.split('\n').filter((l) => l.trim().length > 0);
-      const comments: ScrapedComment[] = lines.map((text, i) => ({
-        id: `c-${i}`,
-        text: text.trim(),
-        likeCount: Math.floor(Math.random() * 50),
-      }));
-      const clustered = clusterCommentsForVoc(comments);
-      setVocReport(clustered);
-      setIsMiningVoc(false);
-    }, 600);
+    const lines = vocCommentsInput.split('\n').filter((l) => l.trim().length > 0);
+    const comments: ScrapedComment[] = lines.map((text, i) => ({
+      id: `c-${i}`,
+      text: text.trim(),
+      likeCount: 0, // Honest baseline instead of random number
+    }));
+    const clustered = clusterCommentsForVoc(comments);
+    setVocReport(clustered);
+    setIsMiningVoc(false);
   };
 
-  // Handle OSINT Probe
+  // Handle OSINT Probe with real backend route (P7)
   const handleScanOsint = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!osintHandle) return;
 
     setIsScanningOsint(true);
-    // Simulate real cross-platform probe fetcher
-    const fetcher = async (url: string) => {
-      await new Promise((r) => setTimeout(r, 400));
-      return { exists: true, status: 200, title: `Profile for @${osintHandle}` };
-    };
-
-    const results = await discoverCrossPlatformHandles(osintHandle, { fetcher });
-    setOsintResults(results);
-    setIsScanningOsint(false);
+    try {
+      const res = await fetch('/api/v1/research/osint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: osintHandle }),
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.results)) {
+        setOsintResults(data.results);
+      } else {
+        alert(data.error || 'Failed to probe cross-platform profiles');
+      }
+    } catch (err: any) {
+      alert(`Network error during OSINT scan: ${err.message}`);
+    } finally {
+      setIsScanningOsint(false);
+    }
   };
 
   // Export functions
@@ -329,6 +323,15 @@ export default function ResearchPage() {
                   </span>
                   <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/40 text-cyan-400 text-[10px] font-mono">
                     HOOK: {analysisResult.hookType}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono border ${
+                    analysisResult.provenance === 'live'
+                      ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
+                      : analysisResult.provenance === 'cached'
+                      ? 'bg-blue-500/10 border-blue-500/40 text-blue-400'
+                      : 'bg-yellow-500/10 border-yellow-500/40 text-yellow-400'
+                  }`}>
+                    PROVENANCE: {analysisResult.provenance?.toUpperCase() || 'LIVE'}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
