@@ -4,8 +4,66 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { generateDeviceFingerprint } from './fingerprint';
+import { ProxyPoolManager, ManagedProxy } from './proxy-manager';
 
 puppeteer.use(StealthPlugin());
+
+export type ViewErrorCategory =
+  | 'TIMEOUT'
+  | 'CAPTCHA'
+  | 'COMFORT_RESTRICTED'
+  | 'PROXY_ERROR'
+  | 'NETWORK_ERROR'
+  | 'BROWSER_CRASH'
+  | 'ABORTED'
+  | 'UNKNOWN';
+
+export interface ViewRunError {
+  viewIndex: number;
+  category: ViewErrorCategory;
+  message: string;
+}
+
+export interface ViewRunResult {
+  successfulViews: number;
+  failedViews: number;
+  blockedViews: number;
+  totalDurationSeconds: number;
+  errors: ViewRunError[];
+}
+
+export function classifyViewError(error: unknown): ViewErrorCategory {
+  const msg = error instanceof Error ? error.message : String(error || '');
+  const lower = msg.toLowerCase();
+
+  if (lower.includes('abort') || lower.includes('cancelled') || lower.includes('canceled')) {
+    return 'ABORTED';
+  }
+  if (lower.includes('timeout') || lower.includes('timed out')) {
+    return 'TIMEOUT';
+  }
+  if (lower.includes('err_proxy_') || lower.includes('proxy connection') || lower.includes('proxy error')) {
+    return 'PROXY_ERROR';
+  }
+  if (
+    lower.includes('err_name_not_resolved') ||
+    lower.includes('err_connection_') ||
+    lower.includes('network error') ||
+    lower.includes('fetch failed')
+  ) {
+    return 'NETWORK_ERROR';
+  }
+  if (lower.includes('captcha') || lower.includes('verify') || lower.includes('security check')) {
+    return 'CAPTCHA';
+  }
+  if (lower.includes('target closed') || lower.includes('session closed') || lower.includes('crashed') || lower.includes('destroyed')) {
+    return 'BROWSER_CRASH';
+  }
+  if (lower.includes('comfortable') || lower.includes('age-restricted') || lower.includes('restricted')) {
+    return 'COMFORT_RESTRICTED';
+  }
+  return 'UNKNOWN';
+}
 
 export interface ViewRunOptions {
   url: string;
@@ -15,12 +73,6 @@ export interface ViewRunOptions {
   headless?: boolean | 'new';
   chromePath?: string;
   cookiesPath?: string;
-  /**
-   * 'unique-guest' (default): strips single-user sessionid/uid_tt and mints a fresh odin_tt + fingerprint
-   * per view so TikTok counts each session as a distinct anonymous viewer (Evil0ctal / growchief pattern).
-   * 'authenticated': injects the full saved account session (needed for age/comfort-restricted posts,
-   * though limited to 1 counted view per unique account).
-   */
   identityMode?: 'unique-guest' | 'authenticated';
   devtools?: boolean;
   slowMo?: number;
@@ -31,8 +83,11 @@ export interface ViewRunOptions {
     username?: string;
     password?: string;
   } | string;
+  proxyPool?: ProxyPoolManager | ManagedProxy[];
+  navigationTimeoutMs?: number;
   settleDelayMs?: number;
   jitterPauseMs?: number;
+  signal?: AbortSignal;
   onProgress?: (completed: number, target: number, dwellSecs: number) => void;
 }
 
@@ -90,12 +145,25 @@ export function buildSessionCookies(baseCookies: any[], mode: 'unique-guest' | '
     });
 }
 
-export async function runStealthViewSession(options: ViewRunOptions): Promise<{
-  successfulViews: number;
-  failedViews: number;
-  blockedViews: number;
-  totalDurationSeconds: number;
-}> {
+export async function runStealthViewSession(options: ViewRunOptions): Promise<ViewRunResult> {
+  const errors: ViewRunError[] = [];
+
+  if (options.signal?.aborted) {
+    return {
+      successfulViews: 0,
+      failedViews: 0,
+      blockedViews: 0,
+      totalDurationSeconds: 0,
+      errors: [
+        {
+          viewIndex: 0,
+          category: 'ABORTED',
+          message: 'Operation cancelled by abort signal',
+        },
+      ],
+    };
+  }
+
   const targetViews = options.targetViews ?? 1;
   const minDwell = options.minDwellSeconds ?? 8;
   const maxDwell = options.maxDwellSeconds ?? 16;
@@ -104,6 +172,11 @@ export async function runStealthViewSession(options: ViewRunOptions): Promise<{
     process.env.CHROME_BIN ||
     process.env.PUPPETEER_EXECUTABLE_PATH ||
     '/usr/bin/google-chrome';
+
+  if (!fs.existsSync(chromePath)) {
+    throw new Error(`Chrome binary not found at "${chromePath}"`);
+  }
+
   const headless = options.headless ?? true;
   const identityMode = options.identityMode ?? 'unique-guest';
   const baseCookies = loadSavedCookies(options.cookiesPath);
@@ -120,6 +193,21 @@ export async function runStealthViewSession(options: ViewRunOptions): Promise<{
         proxyCredentials = {
           username: options.proxy.username,
           password: options.proxy.password,
+        };
+      }
+    }
+  } else if (!proxyServer && options.proxyPool) {
+    const pool =
+      options.proxyPool instanceof ProxyPoolManager
+        ? options.proxyPool
+        : new ProxyPoolManager(options.proxyPool);
+    const chosen = pool.selectProxyForAccount('stealth-run');
+    if (chosen) {
+      proxyServer = `${chosen.protocol.toLowerCase()}://${chosen.host}:${chosen.port}`;
+      if (chosen.username || chosen.encryptedPassword) {
+        proxyCredentials = {
+          username: chosen.username,
+          password: chosen.encryptedPassword,
         };
       }
     }
@@ -175,6 +263,15 @@ export async function runStealthViewSession(options: ViewRunOptions): Promise<{
     });
 
     for (let i = 1; i <= targetViews; i++) {
+      if (options.signal?.aborted) {
+        errors.push({
+          viewIndex: i,
+          category: 'ABORTED',
+          message: 'Operation cancelled by abort signal during session execution',
+        });
+        break;
+      }
+
       let context: any = null;
       try {
         const fp = generateDeviceFingerprint('DESKTOP', i + Math.floor(Math.random() * 10000));
@@ -201,9 +298,10 @@ export async function runStealthViewSession(options: ViewRunOptions): Promise<{
         }
 
         console.log(`[StealthRunner] [View ${i}/${targetViews}] Navigating to target post...`);
+        const navTimeout = options.navigationTimeoutMs ?? 35000;
         await page.goto(options.url, {
           waitUntil: 'domcontentloaded',
-          timeout: 35000,
+          timeout: navTimeout,
         });
 
         // Wait for TikTok SPA hydration redirects to settle
@@ -235,6 +333,11 @@ export async function runStealthViewSession(options: ViewRunOptions): Promise<{
 
         if (pageState.isComfortRestricted && identityMode === 'unique-guest') {
           blockedViews++;
+          errors.push({
+            viewIndex: i,
+            category: 'COMFORT_RESTRICTED',
+            message: 'TikTok age/comfort gate active. Anonymous guests restricted on this post.',
+          });
           console.warn(
             `[StealthRunner] [View ${i}/${targetViews}] BLOCKED: TikTok age/comfort gate active. Anonymous guests restricted on this post. Recommendation: Use SMM Provider API.`
           );
@@ -244,15 +347,24 @@ export async function runStealthViewSession(options: ViewRunOptions): Promise<{
           // Natural interaction: if photo carousel, swipe / navigate through slides
           if (pageState.type === 'photo') {
             const thirdDwell = Math.floor(dwell / 3);
-            await new Promise((r) => setTimeout(r, thirdDwell * 1000));
+            if (thirdDwell > 0) {
+              await new Promise((r) => setTimeout(r, thirdDwell * 1000));
+            }
             await page.keyboard.press('ArrowRight').catch(() => {});
             await page.mouse.move(350 + Math.random() * 100, 400 + Math.random() * 100);
-            await new Promise((r) => setTimeout(r, thirdDwell * 1000));
+            if (thirdDwell > 0) {
+              await new Promise((r) => setTimeout(r, thirdDwell * 1000));
+            }
             await page.keyboard.press('ArrowRight').catch(() => {});
-            await new Promise((r) => setTimeout(r, (dwell - thirdDwell * 2) * 1000));
+            const remaining = dwell - thirdDwell * 2;
+            if (remaining > 0) {
+              await new Promise((r) => setTimeout(r, remaining * 1000));
+            }
           } else {
             // Video post: watch video for full dwell
-            await new Promise((r) => setTimeout(r, dwell * 1000));
+            if (dwell > 0) {
+              await new Promise((r) => setTimeout(r, dwell * 1000));
+            }
           }
 
           successfulViews++;
@@ -263,6 +375,12 @@ export async function runStealthViewSession(options: ViewRunOptions): Promise<{
         }
       } catch (err: any) {
         failedViews++;
+        const cat = classifyViewError(err);
+        errors.push({
+          viewIndex: i,
+          category: cat,
+          message: err?.message || String(err),
+        });
         console.error(`[StealthRunner] [View ${i}/${targetViews}] Error:`, err?.message || err);
       } finally {
         if (context) {
@@ -299,5 +417,6 @@ export async function runStealthViewSession(options: ViewRunOptions): Promise<{
     failedViews,
     blockedViews,
     totalDurationSeconds,
+    errors,
   };
 }
