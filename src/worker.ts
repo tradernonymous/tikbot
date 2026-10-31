@@ -3,6 +3,7 @@ import { PostgresQueueStorage } from './queue/postgres-queue-storage';
 import { globalQueueSafetyLock } from './queue/safety-lock';
 import { globalAccountRateLimiter } from './farm/rate-limiter';
 import { globalKillSwitch, getPersistedKillSwitch } from './security/kill-switch';
+import { globalBanRateCircuitBreaker } from './security/circuit-breaker';
 import { runStealthViewSession } from './farm/stealth-runner';
 import { ContentPublisher, UploaderDriver, PublisherNotConfiguredError } from './content/publisher';
 import { DouyinTikTokClient } from './research/download-api-client';
@@ -268,7 +269,11 @@ export async function executeJobHandler(name: string, payload: Record<string, un
 }
 
 export async function processNextJob(queue: JobQueueEngine, workerId: string): Promise<boolean> {
-  // Check persisted kill switch before claiming
+  // Check circuit breaker and persisted kill switch before claiming
+  if (globalBanRateCircuitBreaker.isTripped()) {
+    return false;
+  }
+
   const killSwitchState = await getPersistedKillSwitch();
   if (killSwitchState.active) {
     return false;
@@ -296,7 +301,8 @@ export async function processNextJob(queue: JobQueueEngine, workerId: string): P
   }
 
   try {
-    // Assert kill switch is still not active during execution
+    // Assert circuit breaker and kill switch are still permitting operations
+    globalBanRateCircuitBreaker.assertExecutionAllowed();
     globalKillSwitch.assertOperationsPermitted();
 
     if (accountId && job.name.startsWith('farm.')) {
