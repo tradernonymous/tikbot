@@ -25,6 +25,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useOperations } from '@/context/OperationsContext';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
+import { CommandPalette, CommandPaletteItem } from '@/components/CommandPalette';
 
 export function TopNavbar() {
   const pathname = usePathname();
@@ -44,6 +45,7 @@ export function TopNavbar() {
   const [loading, setLoading] = useState<boolean>(false);
   const [showSearchModal, setShowSearchModal] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [paletteIndex, setPaletteIndex] = useState<number>(0);
   const [showQuickActions, setShowQuickActions] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [unreadCount, setUnreadCount] = useState<number>(0);
@@ -95,33 +97,51 @@ export function TopNavbar() {
     }
   }
 
-  const getBreadcrumb = () => {
-    if (pathname.includes('/research')) return 'Research Intelligence';
-    if (pathname.includes('/accounts')) return 'Farm Accounts';
-    if (pathname.includes('/campaigns')) return 'Engagement Campaigns';
-    if (pathname.includes('/publishing')) return 'Content & Publishing';
-    if (pathname.includes('/panel')) return 'Farm Services & Launch';
-    if (pathname.includes('/compliance')) return 'Compliance & Audit';
-    if (pathname.includes('/settings')) return 'System Settings';
-    return 'Operations Overview';
-  };
+  const paletteItems: CommandPaletteItem[] = [
+    // Pages
+    { id: 'page-overview', title: 'Dashboard Overview', category: 'page', href: '/dashboard' },
+    { id: 'page-research', title: 'Research Intelligence', category: 'page', href: '/dashboard/research' },
+    { id: 'page-accounts', title: 'Farm Accounts Fleet', category: 'page', href: '/dashboard/accounts' },
+    { id: 'page-campaigns', title: 'Engagement Campaigns', category: 'page', href: '/dashboard/campaigns' },
+    { id: 'page-publishing', title: 'Content & Publishing', category: 'page', href: '/dashboard/publishing' },
+    { id: 'page-panel', title: 'Farm Services & Launch', category: 'page', href: '/dashboard/panel' },
+    { id: 'page-compliance', title: 'Compliance & Audit', category: 'page', href: '/dashboard/compliance' },
+    { id: 'page-settings', title: 'System Settings', category: 'page', href: '/dashboard/settings' },
 
-  // Filter items in command palette
-  const filteredAccounts = accounts.filter(
-    (a) =>
-      a.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.platform.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-  const filteredCampaigns = campaigns.filter(
-    (c) =>
-      c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.actionType.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-  const filteredPosts = researchedPosts.filter(
-    (p) =>
-      p.caption.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.authorHandle.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+    // Actions
+    { id: 'action-approve-camp', title: 'Approve pending campaigns', category: 'action', href: '/dashboard/campaigns?tab=CAMPAIGNS' },
+    { id: 'action-approve-pub', title: 'Approve publishing slots', category: 'action', href: '/dashboard/publishing' },
+    { id: 'action-killswitch', title: killSwitchActive ? 'Resume Operations' : 'Emergency Kill Switch', category: 'action', href: '/dashboard/compliance', onExecute: handleToggleKillSwitch },
+    { id: 'action-launch-task', title: 'Launch Farm Task', category: 'action', href: '/dashboard/panel' },
+    { id: 'action-analyze-post', title: 'Analyze TikTok Video', category: 'action', href: '/dashboard/research' },
+
+    // Entities - Accounts
+    ...accounts.map((acc) => ({
+      id: `entity-acc-${acc.id}`,
+      title: `@${acc.username}`,
+      subtitle: `${acc.status} · Day ${acc.warmupDay}`,
+      category: 'entity' as const,
+      href: `/dashboard/accounts?focus=${acc.id}`,
+    })),
+
+    // Entities - Campaigns
+    ...campaigns.map((camp) => ({
+      id: `entity-camp-${camp.id}`,
+      title: camp.title,
+      subtitle: `${camp.actionType} · ${camp.status}`,
+      category: 'entity' as const,
+      href: `/dashboard/campaigns?focus=${camp.id}`,
+    })),
+
+    // Entities - Publish Jobs
+    ...publishJobs.map((job) => ({
+      id: `entity-job-${job.id}`,
+      title: job.title,
+      subtitle: `${job.platform} · ${job.status}`,
+      category: 'entity' as const,
+      href: `/dashboard/publishing?focus=${job.id}`,
+    })),
+  ];
 
   return (
     <>
@@ -273,124 +293,20 @@ export function TopNavbar() {
         </div>
       </header>
 
-      {/* Global Command Palette Modal (Cmd+K) */}
-      {showSearchModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-start justify-center pt-20 p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-xl w-full p-4 shadow-2xl space-y-3">
-            <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
-              <Search className="w-4 h-4 text-cyan-400" />
-              <input
-                type="text"
-                autoFocus
-                placeholder="Search accounts (@user), campaigns, viral posts, or jump to tabs..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-transparent text-white text-xs placeholder-slate-500 focus:outline-none"
-              />
-              <button
-                onClick={() => setShowSearchModal(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-2 text-xs max-h-80 overflow-y-auto">
-              {/* Feature Shortcuts */}
-              <div className="text-[10px] text-slate-500 font-mono uppercase px-2">Navigation Shortcuts</div>
-              <div className="space-y-0.5">
-                <Link
-                  href="/dashboard/panel"
-                  onClick={() => setShowSearchModal(false)}
-                  className="flex items-center justify-between p-2 rounded-lg text-slate-300 hover:bg-slate-800/80 transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <Radio className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Launch Farm Automation Services</span>
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-mono">/dashboard/panel</span>
-                </Link>
-                <Link
-                  href="/dashboard/research"
-                  onClick={() => setShowSearchModal(false)}
-                  className="flex items-center justify-between p-2 rounded-lg text-slate-300 hover:bg-slate-800/80 transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <Search className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Analyze TikTok / Douyin Video</span>
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-mono">/dashboard/research</span>
-                </Link>
-                <Link
-                  href="/dashboard/accounts"
-                  onClick={() => setShowSearchModal(false)}
-                  className="flex items-center justify-between p-2 rounded-lg text-slate-300 hover:bg-slate-800/80 transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <Users className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Farm Accounts Fleet & Proxies</span>
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-mono">/dashboard/accounts</span>
-                </Link>
-                <Link
-                  href="/dashboard/settings"
-                  onClick={() => setShowSearchModal(false)}
-                  className="flex items-center justify-between p-2 rounded-lg text-slate-300 hover:bg-slate-800/80 transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
-                    <span>SMM Provider Settings & Balance</span>
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-mono">/dashboard/settings</span>
-                </Link>
-              </div>
-
-              {/* Matched Accounts */}
-              {searchQuery && filteredAccounts.length > 0 && (
-                <>
-                  <div className="text-[10px] text-slate-500 font-mono uppercase px-2 pt-2">Matching Accounts</div>
-                  <div className="space-y-0.5">
-                    {filteredAccounts.map((acc) => (
-                      <Link
-                        key={acc.id}
-                        href="/dashboard/accounts"
-                        onClick={() => setShowSearchModal(false)}
-                        className="flex items-center justify-between p-2 rounded-lg text-slate-300 hover:bg-slate-800/80 transition-colors"
-                      >
-                        <span className="flex items-center gap-2 font-mono text-cyan-400">
-                          <span>@{acc.username}</span>
-                          <span className="text-slate-400 text-[10px]">({acc.status})</span>
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-mono">Inspect &rarr;</span>
-                      </Link>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              {/* Matched Campaigns */}
-              {searchQuery && filteredCampaigns.length > 0 && (
-                <>
-                  <div className="text-[10px] text-slate-500 font-mono uppercase px-2 pt-2">Matching Campaigns</div>
-                  <div className="space-y-0.5">
-                    {filteredCampaigns.map((camp) => (
-                      <Link
-                        key={camp.id}
-                        href="/dashboard/campaigns"
-                        onClick={() => setShowSearchModal(false)}
-                        className="flex items-center justify-between p-2 rounded-lg text-slate-300 hover:bg-slate-800/80 transition-colors"
-                      >
-                        <span className="truncate max-w-[280px]">{camp.title}</span>
-                        <span className="text-[10px] text-amber-400 font-mono uppercase">{camp.status}</span>
-                      </Link>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Global Command Palette Modal v2 (Cmd+K) */}
+      <CommandPalette
+        isOpen={showSearchModal}
+        onClose={() => {
+          setShowSearchModal(false);
+          setSearchQuery('');
+          setPaletteIndex(0);
+        }}
+        items={paletteItems}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        selectedIndex={paletteIndex}
+        onSelectedIndexChange={setPaletteIndex}
+      />
     </>
   );
 }
