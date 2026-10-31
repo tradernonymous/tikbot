@@ -27,23 +27,24 @@ export interface PublishAuditEntry {
 
 export type UploaderDriver = (req: PublishRequest) => Promise<PublishResult>;
 
+export class PublisherNotConfiguredError extends Error {
+  constructor() {
+    super('PUBLISHER_NOT_CONFIGURED: No explicit UploaderDriver provided. Real driver must be injected.');
+    this.name = 'PublisherNotConfiguredError';
+  }
+}
+
 export class ContentPublisher {
   private killSwitch: KillSwitchManager;
   private uploaderDriver: UploaderDriver;
   private auditTrail: PublishAuditEntry[] = [];
 
-  constructor(options: { killSwitch?: KillSwitchManager; uploaderDriver?: UploaderDriver } = {}) {
+  constructor(options: { killSwitch?: KillSwitchManager; uploaderDriver: UploaderDriver }) {
+    if (!options || !options.uploaderDriver) {
+      throw new PublisherNotConfiguredError();
+    }
     this.killSwitch = options.killSwitch || globalKillSwitch;
-    this.uploaderDriver =
-      options.uploaderDriver ||
-      (async (req) => {
-        const dummyId = `tt_${randomUUID().slice(0, 8)}`;
-        return {
-          success: true,
-          publishedVideoId: dummyId,
-          url: `https://www.tiktok.com/@${req.accountId}/video/${dummyId}`,
-        };
-      });
+    this.uploaderDriver = options.uploaderDriver;
   }
 
   async publishVideo(req: PublishRequest): Promise<PublishResult> {

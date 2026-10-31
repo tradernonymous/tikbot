@@ -19,7 +19,14 @@ describe('E2E Critical Flows — Master System Verification', () => {
   it('Critical Flow 1: Global Kill Switch halts all operational dispatch immediately', async () => {
     const rateLimiter = new AccountRateLimiter();
     const orchestrator = new ActionOrchestrator({ rateLimiter, killSwitch });
-    const publisher = new ContentPublisher({ killSwitch });
+    const publisher = new ContentPublisher({
+      killSwitch,
+      uploaderDriver: async () => ({
+        success: true,
+        publishedVideoId: 'flow-vid-1',
+        url: 'https://tiktok.com/@flow/video/1',
+      }),
+    });
 
     // Step 1: Normal operations succeed
     const normalDispatch = orchestrator.dispatchAction({

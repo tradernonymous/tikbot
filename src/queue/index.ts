@@ -145,7 +145,8 @@ export class JobQueueEngine {
 
   async failJob(
     jobId: string,
-    error: Error | string
+    error: Error | string,
+    options?: { terminal?: boolean }
   ): Promise<{ retrying: boolean; nextRunAt?: Date }> {
     const job = await this.storage.getJob(jobId);
     if (!job) {
@@ -153,9 +154,13 @@ export class JobQueueEngine {
     }
 
     const errorMessage = error instanceof Error ? error.message : error;
+    const isTerminal =
+      options?.terminal ||
+      errorMessage.includes('PUBLISHER_NOT_CONFIGURED') ||
+      errorMessage.includes('HandlerNotConfiguredError');
     const nextAttempts = job.attempts + 1;
 
-    if (nextAttempts >= job.maxAttempts) {
+    if (isTerminal || nextAttempts >= job.maxAttempts) {
       await this.storage.updateJob(jobId, {
         status: 'FAILED',
         attempts: nextAttempts,

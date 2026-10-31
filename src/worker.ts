@@ -4,7 +4,17 @@ import { globalQueueSafetyLock } from './queue/safety-lock';
 import { globalAccountRateLimiter } from './farm/rate-limiter';
 import { globalKillSwitch, getPersistedKillSwitch } from './security/kill-switch';
 import { runStealthViewSession } from './farm/stealth-runner';
-import { ContentPublisher } from './content/publisher';
+import { ContentPublisher, UploaderDriver, PublisherNotConfiguredError } from './content/publisher';
+
+let configuredUploaderDriver: UploaderDriver | null = null;
+
+export function setUploaderDriver(driver: UploaderDriver | null): void {
+  configuredUploaderDriver = driver;
+}
+
+export function getUploaderDriver(): UploaderDriver | null {
+  return configuredUploaderDriver;
+}
 
 export type JobHandler = (payload: Record<string, unknown>) => Promise<unknown>;
 
@@ -40,7 +50,10 @@ export function registerDefaultJobHandlers(): void {
     const videoUrl = String(payload.videoUrl || payload.mediaUrl || '');
     const caption = String(payload.caption || '');
     if (!videoUrl) throw new Error('publish.upload requires videoUrl');
-    const publisher = new ContentPublisher();
+    if (!configuredUploaderDriver) {
+      throw new PublisherNotConfiguredError();
+    }
+    const publisher = new ContentPublisher({ uploaderDriver: configuredUploaderDriver });
     return await publisher.publishVideo({
       accountId: String(payload.accountId || 'system-creator'),
       mediaPath: videoUrl,
@@ -97,7 +110,7 @@ export async function processNextJob(queue: JobQueueEngine, workerId: string): P
     // Assert kill switch is still not active during execution
     globalKillSwitch.assertOperationsPermitted();
 
-    if (accountId) {
+    if (accountId && job.name.startsWith('farm.')) {
       const actionType = String(job.name.split('.')[1] || 'VIEW').toUpperCase();
       const check = await globalAccountRateLimiter.canPerformAction(accountId, actionType as any);
       if (!check.allowed) {

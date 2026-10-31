@@ -8,7 +8,12 @@ describe('ContentPublisher', () => {
 
   beforeEach(() => {
     killSwitch = new KillSwitchManager();
-    publisher = new ContentPublisher({ killSwitch });
+    const mockDriver = vi.fn().mockResolvedValue({
+      success: true,
+      publishedVideoId: 'vid-test-123',
+      url: 'https://tiktok.com/@creator/video/vid-test-123',
+    });
+    publisher = new ContentPublisher({ killSwitch, uploaderDriver: mockDriver });
   });
 
   it('fails upload if account session is missing or invalid', async () => {
@@ -63,15 +68,8 @@ describe('ContentPublisher', () => {
     expect(auditTrail[0].publishedVideoId).toBe('tt_vid_998877');
   });
 
-  it('uses default uploader driver if none supplied', async () => {
-    const res = await publisher.publishVideo({
-      accountId: 'acc-default',
-      mediaPath: '/tmp/default.mp4',
-      caption: 'Default uploader test',
-      hasValidSession: true,
-    });
-    expect(res.success).toBe(true);
-    expect(res.publishedVideoId).toMatch(/^tt_/);
-    expect(res.url).toContain('/video/');
+  it('throws PUBLISHER_NOT_CONFIGURED if no driver supplied', () => {
+    // @ts-expect-error testing missing driver
+    expect(() => new ContentPublisher({ killSwitch })).toThrow(/PUBLISHER_NOT_CONFIGURED/);
   });
 });
