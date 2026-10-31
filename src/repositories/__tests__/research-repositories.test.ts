@@ -217,7 +217,7 @@ describe('Research & Metrics Repositories Unit Tests', () => {
         },
       ];
 
-      vi.mocked(prisma.researchPost.findMany).mockImplementation(async () => getSampleRows() as any);
+      (prisma.researchPost.findMany as any).mockImplementation(async () => getSampleRows());
 
       // Query with sort=outlier, minOutlierScore=3, authorHandle='creator'
       const res1 = await listResearchPosts({
