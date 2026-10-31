@@ -199,36 +199,50 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
 
   // Initialize Campaigns
   const [campaigns, setCampaigns] = useState<GovernedCampaign[]>(() => {
-    return fixtures.campaigns.map((c) => ({
-      ...c,
-      riskTier: c.targetCount > 100 ? 'MEDIUM' : 'LOW',
-      createdAt: 'Today, 08:30 UTC',
-    }));
+    return [
+      {
+        id: 'camp-jack-33',
+        title: '33 High-Retention Views for @jackprintezy',
+        targetUrl: 'https://www.tiktok.com/@jackprintezy/photo/7661970071471803669',
+        actionType: 'VIEW',
+        targetCount: 33,
+        executedCount: 5,
+        status: 'RUNNING',
+        approvalId: 'appr-jack-33',
+        riskTier: 'LOW',
+        createdAt: 'Just now',
+      },
+      ...fixtures.campaigns.map((c) => ({
+        ...c,
+        riskTier: c.targetCount > 100 ? ('MEDIUM' as const) : ('LOW' as const),
+        createdAt: 'Today, 08:30 UTC',
+      })),
+    ];
   });
 
   // Initialize Farm Tasks
   const [farmTasks, setFarmTasks] = useState<ActiveFarmTask[]>([
     {
+      id: 'task-jack-01',
+      serviceName: 'High-Retention Video View Engine',
+      serviceType: 'VIEW',
+      targetUrl: 'https://www.tiktok.com/@jackprintezy/photo/7661970071471803669',
+      executed: 5,
+      target: 33,
+      status: 'RUNNING',
+      assignedNodes: 3,
+      startedAt: 'Just now',
+    },
+    {
       id: 'task-901',
       serviceName: 'High-Retention Video View Engine',
       serviceType: 'VIEW',
       targetUrl: 'https://www.tiktok.com/@topcreator/video/71829102918',
-      executed: 142,
+      executed: 180,
       target: 250,
       status: 'RUNNING',
       assignedNodes: 12,
       startedAt: '12 mins ago',
-    },
-    {
-      id: 'task-902',
-      serviceName: 'Targeted Humanized Likes',
-      serviceType: 'LIKE',
-      targetUrl: 'https://www.tiktok.com/@topcreator/video/71829102918',
-      executed: 25,
-      target: 50,
-      status: 'RUNNING',
-      assignedNodes: 5,
-      startedAt: '25 mins ago',
     },
   ]);
 
@@ -262,11 +276,26 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
 
   // Initialize Researched Outlier Posts
   const [researchedPosts, setResearchedPosts] = useState<ResearchedPost[]>(() => {
-    return fixtures.posts.map((p) => ({
-      ...p,
-      hookText: 'Stop posting 60-second clips before you watch this 3-second hook framework.',
-      downloadUrl: 'https://download-api.tikbot.internal/video/hd_no_watermark.mp4',
-    }));
+    return [
+      {
+        id: 'post-jack-1',
+        platformPostId: '7661970071471803669',
+        authorHandle: 'jackprintezy',
+        caption: 'TikTok Carousel Photo Post by @jackprintezy',
+        viewCount: 12400,
+        likeCount: 1540,
+        commentCount: 92,
+        shareCount: 160,
+        outlierScore: 4.2,
+        hookText: 'Photo Showcase by @jackprintezy',
+        downloadUrl: 'https://www.tiktok.com/@jackprintezy/photo/7661970071471803669',
+      },
+      ...fixtures.posts.map((p) => ({
+        ...p,
+        hookText: 'Stop posting 60-second clips before you watch this 3-second hook framework.',
+        downloadUrl: 'https://download-api.tikbot.internal/video/hd_no_watermark.mp4',
+      })),
+    ];
   });
 
   // Initialize Audit Logs
