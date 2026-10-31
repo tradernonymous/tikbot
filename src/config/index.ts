@@ -29,7 +29,7 @@ export type AppConfig = z.infer<typeof configSchema>;
 
 let cachedConfig: AppConfig | null = null;
 
-export function loadConfig(env = process.env): AppConfig {
+export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
   const result = configSchema.safeParse(env);
   if (!result.success) {
     const issues = result.error.issues || [];

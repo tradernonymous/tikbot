@@ -1,0 +1,39 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/dashboard/layout,_N_T_/dashboard/research/layout,_N_T_/dashboard/research/page,_N_T_/dashboard/research"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/dashboard/research/__PAGE__"
+  ],
+  "prefetchHints": {
+    "hints": 64,
+    "slots": {
+      "children": {
+        "hints": 96,
+        "slots": {
+          "children": {
+            "hints": 96,
+            "slots": {
+              "children": {
+                "hints": 160,
+                "slots": null
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/01777060421c0b50fd3869dcadf7cda9665611c06dbe912ed0162690af977e45/$/dashboard/research",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/dashboard/research/page"
+    },
+    "isFallback": false
+  }
+}

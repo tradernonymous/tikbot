@@ -1,0 +1,14 @@
+{
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/api/health/readiness/route": "/api/health/readiness",
+  "/api/health/route": "/api/health",
+  "/api/v1/auth/login/route": "/api/v1/auth/login",
+  "/api/v1/system/kill-switch/route": "/api/v1/system/kill-switch",
+  "/dashboard/accounts/page": "/dashboard/accounts",
+  "/dashboard/campaigns/page": "/dashboard/campaigns",
+  "/dashboard/page": "/dashboard",
+  "/dashboard/research/page": "/dashboard/research",
+  "/login/page": "/login",
+  "/page": "/"
+}

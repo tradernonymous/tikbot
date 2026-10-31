@@ -19,6 +19,7 @@ export default defineConfig({
         'src/**/__tests__/**',
         'src/app/**',
         'src/components/**',
+        'src/worker.ts',
       ],
       thresholds: {
         lines: 80,

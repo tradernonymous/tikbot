@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { loadConfig, getConfig } from '../index';
 
 describe('Config Loader (Zod Validation)', () => {
-  const originalEnv = process.env;
+  const originalEnv = { ...process.env };
 
   beforeEach(() => {
     vi.resetModules();
@@ -10,22 +10,23 @@ describe('Config Loader (Zod Validation)', () => {
   });
 
   it('fails validation when required environment variables are missing', () => {
-    process.env = {};
-    expect(() => loadConfig()).toThrowError(/DATABASE_URL|MASTER_ENCRYPTION_KEY/);
+    expect(() => loadConfig({ NODE_ENV: 'test' })).toThrowError(/DATABASE_URL|MASTER_ENCRYPTION_KEY/);
   });
 
   it('fails validation when MASTER_ENCRYPTION_KEY is not a 64-char hex string (32 bytes)', () => {
-    process.env = {
+    const invalidEnv = {
+      NODE_ENV: 'test',
       DATABASE_URL: 'postgresql://user:pass@localhost:5432/tikbot',
       MASTER_ENCRYPTION_KEY: 'too-short-key',
       OPERATOR_PASSWORD_HASH: '$argon2id$v=19$m=65536,t=3,p=4$somehash',
       SESSION_SECRET: 'super-secret-session-key-minimum-32-chars-long',
     };
-    expect(() => loadConfig()).toThrowError(/64-character/);
+    expect(() => loadConfig(invalidEnv)).toThrowError(/64-character/);
   });
 
   it('successfully loads and validates with valid environment variables and defaults', () => {
     process.env = {
+      ...process.env,
       NODE_ENV: 'test',
       DATABASE_URL: 'postgresql://postgres:pass@localhost:5432/tikbot',
       MASTER_ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
@@ -44,6 +45,7 @@ describe('Config Loader (Zod Validation)', () => {
 
   it('correctly handles all variations of KILL_SWITCH_ACTIVE', () => {
     const baseEnv = {
+      NODE_ENV: 'test',
       DATABASE_URL: 'postgresql://postgres:pass@localhost:5432/tikbot',
       MASTER_ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
       OPERATOR_PASSWORD_HASH: '$argon2id$v=19$m=65536,t=3,p=4$validhash',
@@ -58,6 +60,8 @@ describe('Config Loader (Zod Validation)', () => {
 
   it('returns cached config or loads it automatically when getConfig is called', async () => {
     process.env = {
+      ...process.env,
+      NODE_ENV: 'test',
       DATABASE_URL: 'postgresql://postgres:pass@localhost:5432/tikbot',
       MASTER_ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
       OPERATOR_PASSWORD_HASH: '$argon2id$v=19$m=65536,t=3,p=4$validhash',
