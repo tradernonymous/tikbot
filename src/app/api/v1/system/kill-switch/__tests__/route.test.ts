@@ -1,8 +1,17 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { POST, GET } from '../route';
 import { NextRequest } from 'next/server';
 import { createSessionToken } from '@/security/auth';
 import { globalKillSwitch } from '@/security/kill-switch';
+
+vi.mock('@/lib/prisma', () => ({
+  prisma: {
+    systemSetting: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      upsert: vi.fn().mockResolvedValue({}),
+    },
+  },
+}));
 
 describe('Kill Switch API Route (S4 Auth Guard)', () => {
   const secret = 'super-secret-session-key-minimum-32-chars-long';

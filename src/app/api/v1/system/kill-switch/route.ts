@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { globalKillSwitch } from '@/security/kill-switch';
+import { getPersistedKillSwitch, setPersistedKillSwitch } from '@/security/kill-switch';
 import { requireSession } from '@/security/auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  return NextResponse.json(globalKillSwitch.getState());
+  const state = await getPersistedKillSwitch();
+  return NextResponse.json(state);
 }
 
 export async function POST(request: NextRequest) {
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const state = globalKillSwitch.setKillSwitch(
+    const state = await setPersistedKillSwitch(
       active,
       reason,
       operatorId || auth.session.userId || 'admin-operator'

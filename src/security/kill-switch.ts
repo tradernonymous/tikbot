@@ -67,3 +67,56 @@ export class KillSwitchManager {
 export const globalKillSwitch = new KillSwitchManager(
   process.env.KILL_SWITCH_ACTIVE === 'true' || process.env.KILL_SWITCH_ACTIVE === '1'
 );
+
+export const KILL_SWITCH_SETTING_KEY = 'SYSTEM_KILL_SWITCH';
+
+export async function getPersistedKillSwitch(): Promise<KillSwitchState> {
+  try {
+    const { prisma } = await import('@/lib/prisma');
+    const record = await prisma.systemSetting.findUnique({
+      where: { key: KILL_SWITCH_SETTING_KEY },
+    });
+
+    if (record?.value) {
+      const parsed = JSON.parse(record.value);
+      if (typeof parsed.active === 'boolean') {
+        globalKillSwitch.setKillSwitch(
+          parsed.active,
+          parsed.reason || 'Synchronized from database',
+          parsed.operatorId
+        );
+        return globalKillSwitch.getState();
+      }
+    }
+  } catch (err) {
+    // Non-fatal fallback to in-memory state
+  }
+
+  return globalKillSwitch.getState();
+}
+
+export async function setPersistedKillSwitch(
+  active: boolean,
+  reason: string,
+  operatorId?: string
+): Promise<KillSwitchState> {
+  const state = globalKillSwitch.setKillSwitch(active, reason, operatorId);
+
+  try {
+    const { prisma } = await import('@/lib/prisma');
+    await prisma.systemSetting.upsert({
+      where: { key: KILL_SWITCH_SETTING_KEY },
+      update: {
+        value: JSON.stringify(state),
+      },
+      create: {
+        key: KILL_SWITCH_SETTING_KEY,
+        value: JSON.stringify(state),
+      },
+    });
+  } catch (err) {
+    console.error('[KillSwitch] Failed to persist kill switch to database:', err);
+  }
+
+  return state;
+}
