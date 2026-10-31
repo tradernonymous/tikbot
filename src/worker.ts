@@ -95,6 +95,109 @@ export function registerDefaultJobHandlers(): void {
       coverUrl: result.coverUrl,
     };
   });
+
+  jobHandlerRegistry.set('research.watch', async (payload) => {
+    const handle = String(payload.handle || payload.creatorHandle || '').replace(/^@/, '');
+    const url = String(payload.url || payload.targetUrl || '');
+    if (!handle && !url) throw new Error('research.watch requires handle or url');
+
+    const target = url || `https://www.tiktok.com/@${handle}`;
+    const result = await configuredDouyinTikTokClient.extractVideoData(target);
+
+    const { prisma } = await import('@/lib/prisma');
+    const authorHandle = result.author.handle.replace(/^@/, '');
+    const creator = await prisma.creator.upsert({
+      where: {
+        platform_handle: {
+          platform: result.platform,
+          handle: authorHandle,
+        },
+      },
+      update: {
+        lastScrapedAt: new Date(),
+      },
+      create: {
+        platform: result.platform,
+        handle: authorHandle,
+        followerCount: 0,
+      },
+    });
+
+    const post = await prisma.researchPost.upsert({
+      where: {
+        platform_platformPostId: {
+          platform: result.platform,
+          platformPostId: result.postId,
+        },
+      },
+      update: {
+        caption: result.caption,
+        viewCount: result.stats.views,
+        likeCount: result.stats.likes,
+        commentCount: result.stats.comments,
+        shareCount: result.stats.shares,
+      },
+      create: {
+        platform: result.platform,
+        platformPostId: result.postId,
+        authorHandle,
+        caption: result.caption,
+        viewCount: result.stats.views,
+        likeCount: result.stats.likes,
+        commentCount: result.stats.comments,
+        shareCount: result.stats.shares,
+        creatorId: creator.id,
+      },
+    });
+
+    await prisma.postSnapshot.create({
+      data: {
+        postId: post.id,
+        views: result.stats.views,
+        likes: result.stats.likes,
+        comments: result.stats.comments,
+        shares: result.stats.shares,
+      },
+    });
+
+    return {
+      success: true,
+      creatorId: creator.id,
+      postId: post.id,
+      views: result.stats.views,
+      likes: result.stats.likes,
+    };
+  });
+
+  jobHandlerRegistry.set('metrics.collect', async (payload) => {
+    const targetType = String(payload.targetType || 'RESEARCH_POST');
+    const targetId = String(payload.targetId || payload.id || '');
+    if (!targetId) throw new Error('metrics.collect requires targetId');
+
+    const views = Number(payload.views ?? 0);
+    const likes = Number(payload.likes ?? 0);
+    const comments = Number(payload.comments ?? 0);
+    const shares = Number(payload.shares ?? 0);
+
+    const { prisma } = await import('@/lib/prisma');
+    const sample = await prisma.metricSample.create({
+      data: {
+        targetType,
+        targetId,
+        views,
+        likes,
+        comments,
+        shares,
+        researchPostId: targetType === 'RESEARCH_POST' ? targetId : null,
+      },
+    });
+
+    return {
+      success: true,
+      sampleId: sample.id,
+      timestamp: sample.timestamp,
+    };
+  });
 }
 
 // Initial registration of default handlers
