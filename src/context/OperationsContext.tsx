@@ -432,47 +432,97 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // State Persistence: Hydrate from localStorage on client mount
+  // Server-Side State Persistence: Load from API routes on mount (P3)
   useEffect(() => {
+    // 1. One-time cleanup of legacy localStorage state blob if present
     try {
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.farmTasks) && parsed.farmTasks.length > 0) setFarmTasks(parsed.farmTasks);
-        if (Array.isArray(parsed.accounts) && parsed.accounts.length > 0) {
-          // Sanitize accounts: never keep plaintext cookies in client state (S8)
-          const sanitizedAccounts = parsed.accounts.map(({ cookiesJson, ...acc }: any) => ({
-            ...acc,
-            hasCookies: Boolean(acc.hasCookies || cookiesJson),
-          }));
-          setAccounts(sanitizedAccounts);
-        }
-        if (Array.isArray(parsed.proxies) && parsed.proxies.length > 0) setProxies(parsed.proxies);
-        if (Array.isArray(parsed.campaigns) && parsed.campaigns.length > 0) setCampaigns(parsed.campaigns);
+      if (typeof window !== 'undefined' && localStorage.getItem(LOCAL_STORAGE_KEY)) {
+        localStorage.removeItem(LOCAL_STORAGE_KEY);
       }
-    } catch (err) {
-      console.warn('[OperationsContext] Failed to load persisted state:', err);
-    }
-  }, []);
+    } catch {}
 
-  // State Persistence: Sync changes back to localStorage
-  useEffect(() => {
-    try {
-      // Never persist cookiesJson to localStorage (S8)
-      const sanitizedAccounts = accounts.map(({ cookiesJson, ...acc }: any) => acc);
-      localStorage.setItem(
-        LOCAL_STORAGE_KEY,
-        JSON.stringify({
-          farmTasks,
-          accounts: sanitizedAccounts,
-          proxies,
-          campaigns,
-        })
-      );
-    } catch (err) {
-      console.warn('[OperationsContext] Failed to persist state:', err);
-    }
-  }, [farmTasks, accounts, proxies, campaigns]);
+    // 2. Fetch server-persisted accounts (preserves deletions, never resurrects)
+    fetch('/api/v1/accounts')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.accounts)) {
+          setAccounts(
+            data.accounts.map((acc: any) => ({
+              ...acc,
+              status: acc.status as AccountState,
+              warmupDay: acc.warmupDay || (acc.status === 'WARMING' ? 2 : acc.status === 'ACTIVE' ? 7 : 1),
+              sessionCipher: 'vault_aes256_enc_' + acc.id,
+            }))
+          );
+        }
+      })
+      .catch(() => {});
+
+    // 3. Fetch server-persisted proxies
+    fetch('/api/v1/proxies')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.proxies)) {
+          setProxies(data.proxies);
+        }
+      })
+      .catch(() => {});
+
+    // 4. Fetch server-persisted campaigns
+    fetch('/api/v1/campaigns')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.campaigns)) {
+          setCampaigns(
+            data.campaigns.map((c: any) => ({
+              ...c,
+              riskTier: c.targetCount > 100 ? ('MEDIUM' as const) : ('LOW' as const),
+            }))
+          );
+        }
+      })
+      .catch(() => {});
+
+    // 5. Fetch server-persisted audit logs
+    fetch('/api/v1/audit-logs')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.logs)) {
+          setAuditLogs(
+            data.logs.map((l: any) => ({
+              id: l.id,
+              timestamp: new Date(l.timestamp).toLocaleTimeString(),
+              action: l.action,
+              target: l.resourceId || l.resourceType,
+              status: 'SUCCESS' as const,
+              details: `${l.action} on ${l.resourceType}`,
+            }))
+          );
+        }
+      })
+      .catch(() => {});
+
+    // 6. Fetch server-persisted publishing jobs
+    fetch('/api/v1/publishing/jobs')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.jobs)) {
+          setPublishJobs(
+            data.jobs.map((j: any) => ({
+              id: j.id,
+              title: j.caption,
+              platform: 'TIKTOK' as const,
+              status: j.status,
+              accountTarget: j.accountUsername ? `@${j.accountUsername}` : '@account',
+              scheduledFor: j.scheduledAt,
+              videoFile: j.mediaStorageKey || 'clip.mp4',
+              autoHashtags: true,
+            }))
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Sync Kill Switch from server API on mount
   useEffect(() => {
@@ -611,6 +661,17 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     const newId = `acc-${Date.now().toString().slice(-4)}`;
     const hasCookies = Boolean(cookiesJson && cookiesJson.trim().length > 5);
 
+    // Persist to server API (P3)
+    fetch('/api/v1/accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: cleanUser,
+        platform,
+        proxyId: healthyProxy ? healthyProxy.id : null,
+      }),
+    }).catch(() => {});
+
     // Securely encrypt and store session cookies server-side (S8)
     if (hasCookies && cookiesJson) {
       fetch('/api/v1/accounts/session', {
@@ -684,6 +745,10 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
   };
 
   const removeAccount = (accountId: string) => {
+    fetch(`/api/v1/accounts?id=${encodeURIComponent(accountId)}`, {
+      method: 'DELETE',
+    }).catch(() => {});
+
     setAccounts((prev) => prev.filter((acc) => acc.id !== accountId));
     recordAudit('REMOVE_FARM_ACCOUNT', accountId, 'WARNING', `Archived and removed account ${accountId} from farm pool`);
   };
