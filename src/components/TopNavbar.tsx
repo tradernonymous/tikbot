@@ -349,6 +349,17 @@ export function TopNavbar() {
                   </span>
                   <span className="text-[10px] text-slate-400 font-mono">/dashboard/accounts</span>
                 </Link>
+                <Link
+                  href="/dashboard/settings"
+                  onClick={() => setShowSearchModal(false)}
+                  className="flex items-center justify-between p-2 rounded-lg text-slate-300 hover:bg-slate-800/80 transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
+                    <span>SMM Provider Settings & Balance</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">/dashboard/settings</span>
+                </Link>
               </div>
 
               {/* Matched Accounts */}

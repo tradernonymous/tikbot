@@ -33,6 +33,8 @@ export default function SettingsPage() {
   const [smmApiKey, setSmmApiKey] = useState('');
   const [smmBalance, setSmmBalance] = useState<{ balance: number; currency: string } | null>(null);
   const [smmChecking, setSmmChecking] = useState(false);
+  const [smmSyncing, setSmmSyncing] = useState(false);
+  const [smmServicesCount, setSmmServicesCount] = useState<number | null>(null);
   const [smmError, setSmmError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -68,6 +70,30 @@ export default function SettingsPage() {
       setSmmError(err?.message || 'Error connecting to provider API');
     } finally {
       setSmmChecking(false);
+    }
+  };
+
+  const handleSyncServices = async () => {
+    setSmmSyncing(true);
+    setSmmError(null);
+    try {
+      const res = await fetch('/api/v1/smm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'services', apiUrl: smmUrl, apiKey: smmApiKey }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to sync services');
+      }
+      const count = Array.isArray(data.services) ? data.services.length : 0;
+      setSmmServicesCount(count);
+      setSavedMessage(`Synchronized ${count} live services from SupplierFollower API.`);
+      setTimeout(() => setSavedMessage(null), 4000);
+    } catch (err: any) {
+      setSmmError(err?.message || 'Error fetching provider service catalog');
+    } finally {
+      setSmmSyncing(false);
     }
   };
 
@@ -304,15 +330,27 @@ export default function SettingsPage() {
                   Connect any standard v2 SMM API (e.g. JustAnotherPanel, Peakerr, SMMFollows) for high-speed cloud view delivery ($0.01 - $0.15 / 1k).
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleCheckSmmBalance}
-                disabled={smmChecking || !smmApiKey}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 text-xs font-mono transition-colors disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${smmChecking ? 'animate-spin' : ''}`} />
-                <span>{smmChecking ? 'Checking...' : 'Check Balance'}</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSyncServices}
+                  disabled={smmSyncing || !smmApiKey}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-mono transition-colors disabled:opacity-50"
+                  title="Verify & pull available live services"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${smmSyncing ? 'animate-spin' : ''}`} />
+                  <span>{smmSyncing ? 'Syncing...' : 'Sync Catalog'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCheckSmmBalance}
+                  disabled={smmChecking || !smmApiKey}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 text-xs font-mono transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${smmChecking ? 'animate-spin' : ''}`} />
+                  <span>{smmChecking ? 'Checking...' : 'Check Balance'}</span>
+                </button>
+              </div>
             </div>
 
             {smmBalance && (

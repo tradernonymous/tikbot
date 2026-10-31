@@ -151,6 +151,19 @@ export default function FarmServicesPage() {
     e.preventDefault();
     if (!selectedService || !targetUrl) return;
 
+    const cat =
+      selectedService.type === 'VIEW'
+        ? 'VIEWS'
+        : selectedService.type === 'LIKE'
+        ? 'LIKES'
+        : selectedService.type === 'COMMENT'
+        ? 'COMMENTS'
+        : 'LIVE_VIEWS';
+    const match = (SUPPLIER_FOLLOWER_TIKTOK_SERVICES[cat] || []).find((s) => s.id === smmServiceId);
+    const rate = match ? match.ratePer1000 : 0.2639;
+    const totalMyr = (targetCount / 1000) * rate;
+    const costFormatted = `RM ${totalMyr.toFixed(4)}`;
+
     if (engineMode === 'SMM') {
       setIsSubmittingOrder(true);
       try {
@@ -183,9 +196,10 @@ export default function FarmServicesPage() {
           commentNiche,
           externalOrderId: data.order.externalOrderId,
           executionMode: 'SMM_PROVIDER',
+          costFormatted,
         });
 
-        setDispatchSuccess(`Order #${data.order.externalOrderId} successfully sent to SMM API! Views are propagating on TikTok.`);
+        setDispatchSuccess(`Order #${data.order.externalOrderId} sent to SupplierFollower! Cost: ${costFormatted}. Live views propagating.`);
       } catch (err: any) {
         // Fallback: If no API key configured, explain to user and dispatch to farm context
         dispatchFarmTask({
@@ -195,6 +209,7 @@ export default function FarmServicesPage() {
           targetCount,
           commentNiche,
           executionMode: 'SMM_PROVIDER',
+          costFormatted,
         });
         setDispatchSuccess(
           `Dispatched! Note: ${err.message}. To connect live provider orders, add your API key in Settings > SMM Provider.`
@@ -214,6 +229,7 @@ export default function FarmServicesPage() {
       targetCount,
       commentNiche,
       executionMode: 'INTERNAL_FARM',
+      costFormatted: 'FREE (Farm)',
     });
 
     setDispatchSuccess(`Successfully dispatched ${selectedService.name} (${targetCount} actions) to internal farm queue.`);
@@ -384,8 +400,9 @@ export default function FarmServicesPage() {
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 uppercase font-mono text-[11px]">
-                <th className="py-3 px-4 font-medium">Service</th>
+                <th className="py-3 px-4 font-medium">Service & Engine</th>
                 <th className="py-3 px-4 font-medium">Target URL</th>
+                <th className="py-3 px-4 font-medium">Cost / Run</th>
                 <th className="py-3 px-4 font-medium">Progress</th>
                 <th className="py-3 px-4 font-medium">Nodes</th>
                 <th className="py-3 px-4 font-medium">Status</th>
@@ -395,14 +412,33 @@ export default function FarmServicesPage() {
             <tbody className="divide-y divide-slate-800/60 text-slate-300">
               {farmTasks.map((task) => (
                 <tr key={task.id} className="hover:bg-slate-800/20 transition-colors">
-                  <td className="py-3 px-4 font-medium text-white max-w-[200px] truncate">
-                    {task.serviceName}
+                  <td className="py-3 px-4 font-medium text-white max-w-[220px]">
+                    <div className="truncate font-semibold">{task.serviceName}</div>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span
+                        className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${
+                          task.executionMode === 'SMM_PROVIDER'
+                            ? 'bg-cyan-950/80 text-cyan-300 border border-cyan-800/50'
+                            : 'bg-purple-950/80 text-purple-300 border border-purple-800/50'
+                        }`}
+                      >
+                        {task.executionMode === 'SMM_PROVIDER' ? 'SMM API' : 'FARM NODES'}
+                      </span>
+                      {task.externalOrderId && (
+                        <span className="text-[10px] text-slate-400 font-mono">#{task.externalOrderId}</span>
+                      )}
+                    </div>
                   </td>
                   <td className="py-3 px-4 font-mono text-[11px] text-cyan-400/90 max-w-[220px] truncate">
                     <a href={task.targetUrl} target="_blank" rel="noopener noreferrer" className="hover:underline flex items-center gap-1">
                       <span className="truncate">{task.targetUrl}</span>
                       <ExternalLink className="w-3 h-3 shrink-0" />
                     </a>
+                  </td>
+                  <td className="py-3 px-4 font-mono text-xs">
+                    <span className="font-bold text-emerald-400">
+                      {task.costFormatted || (task.executionMode === 'SMM_PROVIDER' ? 'RM 0.00' : 'FREE')}
+                    </span>
                   </td>
                   <td className="py-3 px-4 font-mono text-xs">
                     <div className="flex items-center gap-2">
@@ -414,6 +450,11 @@ export default function FarmServicesPage() {
                         />
                       </div>
                     </div>
+                    {task.providerStatus && (
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        Provider: <span className="text-cyan-300">{task.providerStatus}</span>
+                      </div>
+                    )}
                   </td>
                   <td className="py-3 px-4 font-mono text-xs text-slate-400">
                     {task.assignedNodes} nodes
@@ -587,19 +628,39 @@ export default function FarmServicesPage() {
               </div>
 
               <div>
-                <label className="text-slate-300 font-medium block mb-1">
-                  Target Quantity ({selectedService.type === 'LIVE_VIEW' ? 'Concurrent Viewers' : 'Actions'})
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-300 font-medium">
+                    Target Quantity ({selectedService.type === 'LIVE_VIEW' ? 'Concurrent Viewers' : 'Actions'})
+                  </label>
+                  {engineMode === 'SMM' && (
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      Limits: {(() => {
+                        const cat =
+                          selectedService.type === 'VIEW'
+                            ? 'VIEWS'
+                            : selectedService.type === 'LIKE'
+                            ? 'LIKES'
+                            : selectedService.type === 'COMMENT'
+                            ? 'COMMENTS'
+                            : 'LIVE_VIEWS';
+                        const preset = (SUPPLIER_FOLLOWER_TIKTOK_SERVICES[cat] || []).find((s) => s.id === smmServiceId);
+                        return preset ? `${preset.min.toLocaleString()} – ${preset.max.toLocaleString()}` : '100 – 10,000,000';
+                      })()}
+                    </span>
+                  )}
+                </div>
                 <input
                   type="number"
                   min={1}
-                  max={selectedService.type === 'LIVE_VIEW' ? 50 : 500}
+                  max={engineMode === 'SMM' ? 10000000 : (selectedService.type === 'LIVE_VIEW' ? 50 : 5000)}
                   value={targetCount}
                   onChange={(e) => setTargetCount(Number(e.target.value))}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
                 />
                 <span className="text-[10px] text-slate-400 mt-1 block">
-                  Delays will be naturally jittered between {selectedService.delayRange}.
+                  {engineMode === 'SMM'
+                    ? 'Dispatched through SupplierFollower wholesale mobile/residential device network.'
+                    : `Delays will be naturally jittered between ${selectedService.delayRange}.`}
                 </span>
               </div>
 

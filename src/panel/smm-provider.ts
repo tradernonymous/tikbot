@@ -30,27 +30,79 @@ export interface ExternalOrderStatus {
 
 export type SMMHttpFetcher = (url: string, params: Record<string, any>) => Promise<any>;
 
-export class SMMProviderAdapter {
-  private providerName: string;
+/**
+ * Robust default HTTP fetcher for SMM v2 panels (e.g. supplierfollower.com).
+ * Includes:
+ * 1. 15-second timeout via AbortSignal to avoid socket hangs.
+ * 2. Status code & HTML error page interception (e.g. Cloudflare 502/504 errors).
+ * 3. Exponential backoff retry on transient 5xx/network errors.
+ */
+export async function defaultSMMFetcher(
+  url: string,
+  params: Record<string, any>,
+  maxRetries = 2,
+  timeoutMs = 15000
+): Promise<any> {
+  const formBody = new URLSearchParams();
+  for (const key in params) {
+    if (params[key] !== undefined && params[key] !== null) {
+      formBody.append(key, String(params[key]));
+    }
+  }
 
-  constructor(
-    private config: SMMProviderConfig,
-    private fetcher: SMMHttpFetcher = async (url, params) => {
-      // Use URLSearchParams (form-encoded) as standard for SMM v2 panels like supplierfollower.com
-      const formBody = new URLSearchParams();
-      for (const key in params) {
-        if (params[key] !== undefined && params[key] !== null) {
-          formBody.append(key, String(params[key]));
-        }
-      }
+  let attempt = 0;
+  while (true) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
 
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: formBody.toString(),
+        signal: controller.signal,
       });
-      return response.json();
+
+      clearTimeout(timer);
+
+      const rawText = await response.text();
+
+      // Check if response is HTML (e.g. Cloudflare challenge or 502 Bad Gateway)
+      if (rawText.trim().startsWith('<') || rawText.includes('<!DOCTYPE html>')) {
+        throw new Error(
+          `Provider upstream returned an HTML page (HTTP ${response.status}) instead of JSON. Provider may be undergoing Cloudflare protection or maintenance.`
+        );
+      }
+
+      let parsed: any;
+      try {
+        parsed = JSON.parse(rawText);
+      } catch {
+        throw new Error(`Invalid JSON received from provider: ${rawText.slice(0, 100)}`);
+      }
+
+      return parsed;
+    } catch (err: any) {
+      attempt++;
+      const isAbort = err?.name === 'AbortError' || err?.message?.includes('aborted');
+      const isTransient = isAbort || err?.message?.includes('HTML page') || err?.message?.includes('fetch failed');
+
+      if (attempt <= maxRetries && isTransient) {
+        const delay = Math.pow(2, attempt) * 500;
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
     }
+  }
+}
+
+export class SMMProviderAdapter {
+  private providerName: string;
+
+  constructor(
+    private config: SMMProviderConfig,
+    private fetcher: SMMHttpFetcher = (url, params) => defaultSMMFetcher(url, params)
   ) {
     this.providerName = config.providerName || 'ExternalSMM';
   }

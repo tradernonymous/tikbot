@@ -56,6 +56,11 @@ export interface ActiveFarmTask {
   commentNiche?: string;
   externalOrderId?: string;
   executionMode?: 'INTERNAL_FARM' | 'SMM_PROVIDER';
+  costFormatted?: string;
+  providerStatus?: string;
+  remains?: number;
+  startCount?: number;
+  lastPolledAt?: string;
 }
 
 export interface PublishJob {
@@ -144,6 +149,7 @@ interface OperationsContextType {
     commentNiche?: string;
     externalOrderId?: string;
     executionMode?: 'INTERNAL_FARM' | 'SMM_PROVIDER';
+    costFormatted?: string;
   }) => void;
   pauseTask: (taskId: string) => void;
   resumeTask: (taskId: string) => void;
@@ -393,7 +399,7 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
   // Caps
   const [caps, setCaps] = useState(COMPLIANCE_ACTION_CAPS);
 
-  // Helper: Append Audit Log & Notification
+  // Helper: Append Audit Log & Notification (Bounded circular buffer)
   const recordAudit = (action: string, resourceId: string, status: 'SUCCESS' | 'WARNING' | 'FAILED' = 'SUCCESS', detail?: string) => {
     const timeStr = new Date().toLocaleTimeString();
     const newLog: AuditLogItem = {
@@ -405,10 +411,10 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
       createdAt: `Today, ${timeStr}`,
       status,
     };
-    setAuditLogs((prev) => [newLog, ...prev]);
+    setAuditLogs((prev) => [newLog, ...prev.slice(0, 99)]);
 
     if (detail) {
-      setTerminalLogs((prev) => [`[${timeStr}] [${action}] ${detail}`, ...prev.slice(0, 40)]);
+      setTerminalLogs((prev) => [`[${timeStr}] [${action}] ${detail}`, ...prev.slice(0, 59)]);
       setNotifications((prev) => [
         {
           id: `notif-${Date.now().toString().slice(-4)}`,
@@ -422,6 +428,39 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // State Persistence: Hydrate from localStorage on client mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.farmTasks) && parsed.farmTasks.length > 0) setFarmTasks(parsed.farmTasks);
+        if (Array.isArray(parsed.accounts) && parsed.accounts.length > 0) setAccounts(parsed.accounts);
+        if (Array.isArray(parsed.proxies) && parsed.proxies.length > 0) setProxies(parsed.proxies);
+        if (Array.isArray(parsed.campaigns) && parsed.campaigns.length > 0) setCampaigns(parsed.campaigns);
+      }
+    } catch (err) {
+      console.warn('[OperationsContext] Failed to load persisted state:', err);
+    }
+  }, []);
+
+  // State Persistence: Sync changes back to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        LOCAL_STORAGE_KEY,
+        JSON.stringify({
+          farmTasks,
+          accounts,
+          proxies,
+          campaigns,
+        })
+      );
+    } catch (err) {
+      console.warn('[OperationsContext] Failed to persist state:', err);
+    }
+  }, [farmTasks, accounts, proxies, campaigns]);
+
   // Sync Kill Switch from server API on mount
   useEffect(() => {
     fetch('/api/v1/system/kill-switch')
@@ -434,16 +473,92 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
       .catch(() => {});
   }, []);
 
-  // Background Task Ticker (Simulation loop)
+  // Live SMM Status Poller: Polls real status for external provider orders
+  useEffect(() => {
+    if (killSwitchActive) return;
+
+    const smmInterval = setInterval(async () => {
+      const activeSmmTasks = farmTasks.filter(
+        (t) => t.executionMode === 'SMM_PROVIDER' && t.status === 'RUNNING' && t.externalOrderId
+      );
+
+      if (activeSmmTasks.length === 0) return;
+
+      const savedUrl = localStorage.getItem('TIKBOT_SMM_URL') || undefined;
+      const savedKey = localStorage.getItem('TIKBOT_SMM_KEY') || undefined;
+
+      for (const task of activeSmmTasks) {
+        try {
+          const res = await fetch('/api/v1/smm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'status',
+              apiUrl: savedUrl,
+              apiKey: savedKey,
+              orderId: task.externalOrderId,
+            }),
+          });
+          const data = await res.json();
+          if (data.success && data.status) {
+            const rawStatus = String(data.status.status || '').toLowerCase();
+            const remains = data.status.remains !== undefined ? Number(data.status.remains) : undefined;
+            const startCount = data.status.startCount !== undefined ? Number(data.status.startCount) : undefined;
+
+            setFarmTasks((prev) =>
+              prev.map((t) => {
+                if (t.id === task.id) {
+                  const isCompleted = rawStatus.includes('completed') || remains === 0;
+                  const isCanceled = rawStatus.includes('cancel') || rawStatus.includes('refund');
+                  const nextStatus = isCompleted ? 'COMPLETED' : isCanceled ? 'PAUSED' : 'RUNNING';
+
+                  let executed = t.executed;
+                  if (remains !== undefined && t.target >= remains) {
+                    executed = t.target - remains;
+                  } else if (isCompleted) {
+                    executed = t.target;
+                  }
+
+                  return {
+                    ...t,
+                    status: nextStatus,
+                    executed,
+                    remains,
+                    startCount,
+                    providerStatus: data.status.status,
+                    lastPolledAt: new Date().toLocaleTimeString(),
+                  };
+                }
+                return t;
+              })
+            );
+
+            setTerminalLogs((prev) => [
+              `[${new Date().toLocaleTimeString()}] [SMM Poller] Order #${task.externalOrderId}: ${data.status.status}${
+                remains !== undefined ? ` (Remains: ${remains})` : ''
+              }`,
+              ...prev.slice(0, 59),
+            ]);
+          }
+        } catch {
+          // Silent catch for intermittent network hiccup
+        }
+      }
+    }, 15000);
+
+    return () => clearInterval(smmInterval);
+  }, [farmTasks, killSwitchActive]);
+
+  // Background Task Ticker (Internal Farm & Campaigns simulation only)
   useEffect(() => {
     if (killSwitchActive) return;
 
     const interval = setInterval(() => {
-      // 1. Progress running farm tasks
+      // 1. Progress running INTERNAL farm tasks only (SMM tasks are handled by real poller above)
       setFarmTasks((prevTasks) => {
         let changed = false;
         const updated = prevTasks.map((task) => {
-          if (task.status === 'RUNNING' && task.executed < task.target) {
+          if (task.executionMode !== 'SMM_PROVIDER' && task.status === 'RUNNING' && task.executed < task.target) {
             changed = true;
             const inc = Math.min(task.target - task.executed, Math.floor(Math.random() * 3) + 1);
             const nextExecuted = task.executed + inc;
@@ -624,6 +739,7 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     commentNiche?: string;
     externalOrderId?: string;
     executionMode?: 'INTERNAL_FARM' | 'SMM_PROVIDER';
+    costFormatted?: string;
   }) => {
     const newTask: ActiveFarmTask = {
       id: `task-${Date.now().toString().slice(-4)}`,
@@ -638,9 +754,10 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
       commentNiche: data.commentNiche,
       externalOrderId: data.externalOrderId,
       executionMode: data.executionMode || 'INTERNAL_FARM',
+      costFormatted: data.costFormatted || (data.executionMode === 'INTERNAL_FARM' ? 'FREE (0.00)' : 'RM 0.00'),
     };
     setFarmTasks((prev) => [newTask, ...prev]);
-    recordAudit('DISPATCH_FARM_TASK', data.serviceName, 'SUCCESS', `Dispatched ${data.serviceName} (${data.targetCount} actions${data.executionMode ? ` via ${data.executionMode}` : ''})`);
+    recordAudit('DISPATCH_FARM_TASK', data.serviceName, 'SUCCESS', `Dispatched ${data.serviceName} (${data.targetCount} actions${data.executionMode ? ` via ${data.executionMode}` : ''}${data.costFormatted ? ` • ${data.costFormatted}` : ''})`);
   };
 
   const pauseTask = (taskId: string) => {

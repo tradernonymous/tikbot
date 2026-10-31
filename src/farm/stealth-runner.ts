@@ -82,6 +82,7 @@ function buildSessionCookies(baseCookies: any[], mode: 'unique-guest' | 'authent
 export async function runStealthViewSession(options: ViewRunOptions): Promise<{
   successfulViews: number;
   failedViews: number;
+  blockedViews: number;
   totalDurationSeconds: number;
 }> {
   const targetViews = options.targetViews ?? 1;
@@ -94,123 +95,156 @@ export async function runStealthViewSession(options: ViewRunOptions): Promise<{
 
   let successfulViews = 0;
   let failedViews = 0;
+  let blockedViews = 0;
   const startTime = Date.now();
 
   console.log(`[StealthRunner] Starting real view runner targeting: ${options.url}`);
   console.log(`[StealthRunner] Planned views: ${targetViews} | Mode: ${identityMode} (Dwell: ${minDwell}s - ${maxDwell}s)`);
 
-  for (let i = 1; i <= targetViews; i++) {
-    let browser = null;
-    try {
-      const fp = generateDeviceFingerprint('DESKTOP', i + Math.floor(Math.random() * 10000));
-      const sessionCookies = buildSessionCookies(baseCookies, identityMode);
+  let masterBrowser: any = null;
 
-      console.log(`[StealthRunner] [View ${i}/${targetViews}] Launching stealth browser (odin_tt rotated, UA: ${fp.userAgent.slice(0, 45)}...)...`);
-      browser = await puppeteer.launch({
-        executablePath: chromePath,
-        headless: headless as any,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--disable-gpu',
-          '--disable-blink-features=AutomationControlled',
-          `--window-size=${fp.viewport.width},${fp.viewport.height}`,
-        ],
-      });
+  // Process termination trap to prevent zombie Chrome processes
+  const handleTermination = async () => {
+    if (masterBrowser) {
+      try {
+        await masterBrowser.close();
+      } catch {}
+      masterBrowser = null;
+    }
+  };
+  process.once('SIGINT', handleTermination);
+  process.once('SIGTERM', handleTermination);
 
-      const page = await browser.newPage();
-      await page.setViewport({ width: fp.viewport.width, height: fp.viewport.height });
-      await page.setUserAgent(fp.userAgent);
+  try {
+    // Launch shared master browser instance once (Browser Context Pooling)
+    console.log(`[StealthRunner] Initializing shared master Chrome engine...`);
+    masterBrowser = await puppeteer.launch({
+      executablePath: chromePath,
+      headless: headless as any,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--disable-gpu',
+        '--disable-blink-features=AutomationControlled',
+        '--window-size=1280,800',
+      ],
+    });
 
-      if (sessionCookies.length > 0) {
-        await page.setCookie(...sessionCookies);
-      }
+    for (let i = 1; i <= targetViews; i++) {
+      let context: any = null;
+      try {
+        const fp = generateDeviceFingerprint('DESKTOP', i + Math.floor(Math.random() * 10000));
+        const sessionCookies = buildSessionCookies(baseCookies, identityMode);
 
-      console.log(`[StealthRunner] [View ${i}/${targetViews}] Navigating to post page...`);
-      await page.goto(options.url, {
-        waitUntil: 'domcontentloaded',
-        timeout: 35000,
-      });
+        console.log(`[StealthRunner] [View ${i}/${targetViews}] Spawning isolated incognito context (odin_tt rotated, UA: ${fp.userAgent.slice(0, 45)}...)...`);
 
-      // Wait 4s for TikTok SPA hydration redirects to settle (prevents ExecutionContext destroyed)
-      await new Promise((r) => setTimeout(r, 4000));
+        // Create ephemeral incognito context per view (zero session bleed, ultra-fast)
+        context = await masterBrowser.createBrowserContext();
+        const page = await context.newPage();
+        await page.setViewport({ width: fp.viewport.width, height: fp.viewport.height });
+        await page.setUserAgent(fp.userAgent);
 
-      // Random dwell time for algorithmic view retention
-      const dwell = Math.floor(Math.random() * (maxDwell - minDwell + 1)) + minDwell;
-
-      // Humanized mouse movement
-      await page.mouse.move(200 + Math.random() * 300, 300 + Math.random() * 200);
-
-      // Inspect post state & check for Audience Comfort / Age Restriction gate
-      const pageState = await page.evaluate(() => {
-        const bodyText = document.body?.innerText || '';
-        const isComfortRestricted =
-          bodyText.includes('not be comfortable for some audiences') ||
-          document.title.includes('Log in | TikTok');
-        const video = document.querySelector('video');
-        if (video) {
-          video.muted = true;
-          video.play().catch(() => {});
-          return { type: 'video', hasVideo: true, isComfortRestricted };
+        if (sessionCookies.length > 0) {
+          await page.setCookie(...sessionCookies);
         }
-        return { type: 'photo', hasVideo: false, isComfortRestricted };
-      });
 
-      if (pageState.isComfortRestricted && identityMode === 'unique-guest') {
-        console.warn(
-          `[StealthRunner] [View ${i}/${targetViews}] WARNING: TikTok flagged this post as "Not comfortable for some audiences" (Age/Comfort Gate). Guest views are blocked by TikTok on this specific post.`
-        );
+        console.log(`[StealthRunner] [View ${i}/${targetViews}] Navigating to target post...`);
+        await page.goto(options.url, {
+          waitUntil: 'domcontentloaded',
+          timeout: 35000,
+        });
+
+        // Wait 4s for TikTok SPA hydration redirects to settle
+        await new Promise((r) => setTimeout(r, 4000));
+
+        // Random dwell time for algorithmic view retention
+        const dwell = Math.floor(Math.random() * (maxDwell - minDwell + 1)) + minDwell;
+
+        // Humanized mouse movement
+        await page.mouse.move(200 + Math.random() * 300, 300 + Math.random() * 200);
+
+        // Inspect post state & check for Audience Comfort / Age Restriction gate
+        const pageState = await page.evaluate(() => {
+          const bodyText = document.body?.innerText || '';
+          const isComfortRestricted =
+            bodyText.includes('not be comfortable for some audiences') ||
+            document.title.includes('Log in | TikTok');
+          const video = document.querySelector('video');
+          if (video) {
+            video.muted = true;
+            video.play().catch(() => {});
+            return { type: 'video', hasVideo: true, isComfortRestricted };
+          }
+          return { type: 'photo', hasVideo: false, isComfortRestricted };
+        });
+
+        if (pageState.isComfortRestricted && identityMode === 'unique-guest') {
+          blockedViews++;
+          console.warn(
+            `[StealthRunner] [View ${i}/${targetViews}] BLOCKED: TikTok age/comfort gate active. Anonymous guests restricted on this post. Recommendation: Use SMM Provider API.`
+          );
+        } else {
+          console.log(`[StealthRunner] [View ${i}/${targetViews}] Format: ${pageState.type}. Watching for ${dwell}s completion dwell...`);
+
+          // Natural interaction: if photo carousel, swipe / navigate through slides
+          if (pageState.type === 'photo') {
+            const thirdDwell = Math.floor(dwell / 3);
+            await new Promise((r) => setTimeout(r, thirdDwell * 1000));
+            await page.keyboard.press('ArrowRight').catch(() => {});
+            await page.mouse.move(350 + Math.random() * 100, 400 + Math.random() * 100);
+            await new Promise((r) => setTimeout(r, thirdDwell * 1000));
+            await page.keyboard.press('ArrowRight').catch(() => {});
+            await new Promise((r) => setTimeout(r, (dwell - thirdDwell * 2) * 1000));
+          } else {
+            // Video post: watch video for full dwell
+            await new Promise((r) => setTimeout(r, dwell * 1000));
+          }
+
+          successfulViews++;
+          if (options.onProgress) {
+            options.onProgress(successfulViews, targetViews, dwell);
+          }
+          console.log(`[StealthRunner] [View ${i}/${targetViews}] View session completed successfully.`);
+        }
+      } catch (err: any) {
+        failedViews++;
+        console.error(`[StealthRunner] [View ${i}/${targetViews}] Error:`, err?.message || err);
+      } finally {
+        if (context) {
+          try {
+            await context.close();
+          } catch {}
+        }
       }
 
-      console.log(`[StealthRunner] [View ${i}/${targetViews}] Detected format: ${pageState.type}. Watching for ${dwell}s completion dwell...`);
-
-      // Natural interaction: if photo carousel, swipe / navigate through slides
-      if (pageState.type === 'photo') {
-        const thirdDwell = Math.floor(dwell / 3);
-        await new Promise((r) => setTimeout(r, thirdDwell * 1000));
-        await page.keyboard.press('ArrowRight').catch(() => {});
-        await page.mouse.move(350 + Math.random() * 100, 400 + Math.random() * 100);
-        await new Promise((r) => setTimeout(r, thirdDwell * 1000));
-        await page.keyboard.press('ArrowRight').catch(() => {});
-        await new Promise((r) => setTimeout(r, (dwell - thirdDwell * 2) * 1000));
-      } else {
-        // Video post: watch video for full dwell
-        await new Promise((r) => setTimeout(r, dwell * 1000));
-      }
-
-      successfulViews++;
-      if (options.onProgress) {
-        options.onProgress(successfulViews, targetViews, dwell);
-      }
-      console.log(`[StealthRunner] [View ${i}/${targetViews}] View session completed successfully.`);
-    } catch (err: any) {
-      failedViews++;
-      console.error(`[StealthRunner] [View ${i}/${targetViews}] Error:`, err?.message || err);
-    } finally {
-      if (browser) {
-        try {
-          await browser.close();
-        } catch {}
+      // Delay between successive views if not last
+      if (i < targetViews) {
+        const waitJitter = Math.floor(Math.random() * 4) + 2; // 2-5s pause
+        console.log(`[StealthRunner] Jitter pause ${waitJitter}s before next session...`);
+        await new Promise((r) => setTimeout(r, waitJitter * 1000));
       }
     }
-
-    // Delay between successive views if not last
-    if (i < targetViews) {
-      const waitJitter = Math.floor(Math.random() * 4) + 2; // 2-5s pause
-      console.log(`[StealthRunner] Jitter pause ${waitJitter}s before next session...`);
-      await new Promise((r) => setTimeout(r, waitJitter * 1000));
+  } finally {
+    if (masterBrowser) {
+      try {
+        await masterBrowser.close();
+      } catch {}
+      masterBrowser = null;
     }
+    process.removeListener('SIGINT', handleTermination);
+    process.removeListener('SIGTERM', handleTermination);
   }
 
   const totalDurationSeconds = Math.round((Date.now() - startTime) / 1000);
-  console.log(`[StealthRunner] Completed: ${successfulViews} views generated in ${totalDurationSeconds}s.`);
+  console.log(`[StealthRunner] Completed: ${successfulViews} views, ${blockedViews} blocked, ${failedViews} failed in ${totalDurationSeconds}s.`);
   return {
     successfulViews,
     failedViews,
+    blockedViews,
     totalDurationSeconds,
   };
 }
