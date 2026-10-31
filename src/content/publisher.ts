@@ -13,6 +13,11 @@ export interface PublishResult {
   success: boolean;
   publishedVideoId: string;
   url: string;
+  publishId?: string;
+  providerStatus?: string;
+  privacyLevel?: 'SELF_ONLY' | 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'FOLLOWER_OF_CREATOR';
+  driverType?: 'OFFICIAL' | 'BROWSER' | 'MOCK';
+  details?: Record<string, unknown>;
 }
 
 export interface PublishAuditEntry {
