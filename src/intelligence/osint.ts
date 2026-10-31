@@ -41,7 +41,7 @@ export async function discoverCrossPlatformHandles(
         url,
         found: probe.exists,
         confidence: probe.exists ? 95 : 0,
-        title: probe.title,
+        title: 'title' in probe ? probe.title : undefined,
       };
     } catch {
       return {
