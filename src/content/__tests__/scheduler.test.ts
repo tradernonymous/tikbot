@@ -80,6 +80,23 @@ describe('ContentScheduler', () => {
     expect(finalFailure.lastError).toBe('Fatal error');
   });
 
+  it('records successful publish and retrieves schedule item', () => {
+    const item = scheduler.schedulePost({
+      mediaAssetId: 'asset-123',
+      caption: 'Success post',
+      platform: 'TIKTOK',
+      scheduledAt: new Date(),
+      accountId: 'acc-1',
+    });
+
+    const retrieved = scheduler.getScheduleItem(item.id);
+    expect(retrieved?.caption).toBe('Success post');
+
+    const published = scheduler.recordPublishSuccess(item.id);
+    expect(published.status).toBe('PUBLISHED');
+    expect(published.publishedAt).toBeDefined();
+  });
+
   it('blocks dispatch when kill switch is active', () => {
     killSwitch.setKillSwitch(true, 'Publishing paused for audit');
     expect(() => {

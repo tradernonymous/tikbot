@@ -62,4 +62,16 @@ describe('ContentPublisher', () => {
     expect(auditTrail[0].accountId).toBe('acc-1');
     expect(auditTrail[0].publishedVideoId).toBe('tt_vid_998877');
   });
+
+  it('uses default uploader driver if none supplied', async () => {
+    const res = await publisher.publishVideo({
+      accountId: 'acc-default',
+      mediaPath: '/tmp/default.mp4',
+      caption: 'Default uploader test',
+      hasValidSession: true,
+    });
+    expect(res.success).toBe(true);
+    expect(res.publishedVideoId).toMatch(/^tt_/);
+    expect(res.url).toContain('/video/');
+  });
 });

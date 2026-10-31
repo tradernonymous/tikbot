@@ -75,4 +75,31 @@ describe('MediaLibrary', () => {
     const updated = library.getAsset(asset.id);
     expect(updated?.variants).toHaveLength(1);
   });
+
+  it('correctly classifies various aspect ratios including 1:1, 4:5, and custom', () => {
+    const square = library.addAsset({
+      filename: 'sq.png',
+      mimeType: 'image/png',
+      sizeBytes: 500,
+      width: 1080,
+      height: 1080,
+    });
+    expect(square.aspectRatio).toBe('1:1');
+
+    const portrait45 = library.addAsset({
+      filename: 'p45.png',
+      mimeType: 'image/png',
+      sizeBytes: 500,
+      width: 1080,
+      height: 1350,
+    });
+    expect(portrait45.aspectRatio).toBe('4:5');
+
+    const custom = library.addAsset({
+      filename: 'custom.png',
+      mimeType: 'image/png',
+      sizeBytes: 500,
+    });
+    expect(custom.aspectRatio).toBe('CUSTOM');
+  });
 });
