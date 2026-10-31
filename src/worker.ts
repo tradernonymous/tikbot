@@ -7,9 +7,16 @@ import { runStealthViewSession } from './farm/stealth-runner';
 import { ContentPublisher, UploaderDriver, PublisherNotConfiguredError } from './content/publisher';
 import { DouyinTikTokClient } from './research/download-api-client';
 import { globalNotificationService } from './notifications/service';
+import {
+  FarmInteractionDriver,
+  executeFarmLike,
+  executeFarmComment,
+  executeFarmLive,
+} from './farm/farm-actions';
 
 let configuredUploaderDriver: UploaderDriver | null = null;
 let configuredDouyinTikTokClient: DouyinTikTokClient = new DouyinTikTokClient();
+let configuredFarmDriver: FarmInteractionDriver | null = null;
 
 export function setUploaderDriver(driver: UploaderDriver | null): void {
   configuredUploaderDriver = driver;
@@ -25,6 +32,14 @@ export function setDouyinTikTokClient(client: DouyinTikTokClient): void {
 
 export function getDouyinTikTokClient(): DouyinTikTokClient {
   return configuredDouyinTikTokClient;
+}
+
+export function setFarmInteractionDriver(driver: FarmInteractionDriver | null): void {
+  configuredFarmDriver = driver;
+}
+
+export function getFarmInteractionDriver(): FarmInteractionDriver | null {
+  return configuredFarmDriver;
 }
 
 export type JobHandler = (payload: Record<string, unknown>) => Promise<unknown>;
@@ -55,6 +70,45 @@ export function registerDefaultJobHandlers(): void {
       settleDelayMs: 50,
       jitterPauseMs: 50,
     });
+  });
+
+  jobHandlerRegistry.set('farm.like', async (payload) => {
+    if (!configuredFarmDriver) {
+      throw new HandlerNotConfiguredError('farm.like');
+    }
+    const targetUrl = String(payload.url || payload.targetUrl || '');
+    if (!targetUrl) throw new Error('farm.like requires url');
+    const accountId = String(payload.accountId || 'anonymous');
+    return await executeFarmLike({ accountId, url: targetUrl, proxy: payload.proxy }, configuredFarmDriver);
+  });
+
+  jobHandlerRegistry.set('farm.comment', async (payload) => {
+    if (!configuredFarmDriver) {
+      throw new HandlerNotConfiguredError('farm.comment');
+    }
+    const targetUrl = String(payload.url || payload.targetUrl || '');
+    if (!targetUrl) throw new Error('farm.comment requires url');
+    const accountId = String(payload.accountId || 'anonymous');
+    const commentText = payload.commentText ? String(payload.commentText) : undefined;
+    const category = payload.category ? String(payload.category) : undefined;
+    return await executeFarmComment(
+      { accountId, url: targetUrl, commentText, category, proxy: payload.proxy },
+      configuredFarmDriver
+    );
+  });
+
+  jobHandlerRegistry.set('farm.live', async (payload) => {
+    if (!configuredFarmDriver) {
+      throw new HandlerNotConfiguredError('farm.live');
+    }
+    const targetUrl = String(payload.url || payload.targetUrl || payload.streamUrl || '');
+    if (!targetUrl) throw new Error('farm.live requires url');
+    const accountId = String(payload.accountId || 'anonymous');
+    const durationSeconds = payload.durationSeconds ? Number(payload.durationSeconds) : 60;
+    return await executeFarmLive(
+      { accountId, url: targetUrl, durationSeconds, proxy: payload.proxy },
+      configuredFarmDriver
+    );
   });
 
   jobHandlerRegistry.set('publish.upload', async (payload) => {
