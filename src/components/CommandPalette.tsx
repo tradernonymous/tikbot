@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useEffect, useRef } from 'react';
 import { Search, X, Command, Play, Flame, Calendar, Users, Radio, ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
