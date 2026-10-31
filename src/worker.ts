@@ -8,6 +8,13 @@ import { ContentPublisher } from './content/publisher';
 
 export type JobHandler = (payload: Record<string, unknown>) => Promise<unknown>;
 
+export class HandlerNotConfiguredError extends Error {
+  constructor(jobType: string) {
+    super(`HandlerNotConfiguredError: No driver configured for job type "${jobType}". Configure driver before registering.`);
+    this.name = 'HandlerNotConfiguredError';
+  }
+}
+
 export const jobHandlerRegistry = new Map<string, JobHandler>();
 
 export function registerJobHandler(name: string, handler: JobHandler): void {
@@ -15,6 +22,8 @@ export function registerJobHandler(name: string, handler: JobHandler): void {
 }
 
 export function registerDefaultJobHandlers(): void {
+  jobHandlerRegistry.clear();
+
   jobHandlerRegistry.set('farm.view', async (payload) => {
     const targetUrl = String(payload.url || payload.targetUrl || '');
     if (!targetUrl) throw new Error('farm.view requires url');
@@ -25,25 +34,6 @@ export function registerDefaultJobHandlers(): void {
       settleDelayMs: 50,
       jitterPauseMs: 50,
     });
-  });
-
-  jobHandlerRegistry.set('farm.like', async (payload) => {
-    const targetUrl = String(payload.url || payload.targetUrl || '');
-    if (!targetUrl) throw new Error('farm.like requires url');
-    return { success: true, targetUrl, action: 'like', timestamp: new Date().toISOString() };
-  });
-
-  jobHandlerRegistry.set('farm.comment', async (payload) => {
-    const targetUrl = String(payload.url || payload.targetUrl || '');
-    const commentText = String(payload.comment || payload.text || 'Great content!');
-    if (!targetUrl) throw new Error('farm.comment requires url');
-    return { success: true, targetUrl, comment: commentText, timestamp: new Date().toISOString() };
-  });
-
-  jobHandlerRegistry.set('farm.live', async (payload) => {
-    const streamUrl = String(payload.streamUrl || payload.url || '');
-    if (!streamUrl) throw new Error('farm.live requires streamUrl');
-    return { success: true, streamUrl, status: 'BOOSTING', timestamp: new Date().toISOString() };
   });
 
   jobHandlerRegistry.set('publish.upload', async (payload) => {
@@ -77,7 +67,7 @@ registerDefaultJobHandlers();
 export async function executeJobHandler(name: string, payload: Record<string, unknown>): Promise<unknown> {
   const handler = jobHandlerRegistry.get(name);
   if (!handler) {
-    throw new Error(`No handler registered for job type: ${name}`);
+    throw new HandlerNotConfiguredError(name);
   }
   return await handler(payload);
 }

@@ -6,6 +6,7 @@ import {
   processNextJob,
   executeJobHandler,
   createDefaultQueueStorage,
+  HandlerNotConfiguredError,
 } from '../worker';
 import { JobQueueEngine, InMemoryQueueStorage } from '../queue';
 import { globalKillSwitch } from '../security/kill-switch';
@@ -31,12 +32,9 @@ describe('Worker Handler Registry & Execution (P4, P5 TDD)', () => {
     queue = new JobQueueEngine(storage);
   });
 
-  it('has default handlers registered for all required job types', () => {
+  it('has default handlers registered for core configured job types', () => {
     const requiredTypes = [
       'farm.view',
-      'farm.like',
-      'farm.comment',
-      'farm.live',
       'publish.upload',
       'research.scrape',
     ];
@@ -44,6 +42,16 @@ describe('Worker Handler Registry & Execution (P4, P5 TDD)', () => {
     for (const jobType of requiredTypes) {
       expect(jobHandlerRegistry.has(jobType)).toBe(true);
       expect(typeof jobHandlerRegistry.get(jobType)).toBe('function');
+    }
+  });
+
+  it('rejects unconfigured farm handlers by default with HandlerNotConfiguredError', async () => {
+    const unconfiguredTypes = ['farm.like', 'farm.comment', 'farm.live'];
+    for (const jobType of unconfiguredTypes) {
+      expect(jobHandlerRegistry.has(jobType)).toBe(false);
+      await expect(executeJobHandler(jobType, { url: 'https://tiktok.com/@u/v/1' })).rejects.toThrow(
+        /HandlerNotConfiguredError/
+      );
     }
   });
 
@@ -58,7 +66,7 @@ describe('Worker Handler Registry & Execution (P4, P5 TDD)', () => {
 
   it('throws an error if no handler is registered for a job', async () => {
     await expect(executeJobHandler('unregistered.type', {})).rejects.toThrow(
-      /No handler registered for job type: unregistered.type/
+      HandlerNotConfiguredError
     );
   });
 
@@ -110,30 +118,23 @@ describe('Worker Handler Registry & Execution (P4, P5 TDD)', () => {
     expect(claimed).not.toBeNull();
   });
 
-  it('executes default handlers for farm.like, farm.comment, farm.live, research.scrape', async () => {
+  it('executes handlers for research.scrape and configured drivers', async () => {
+    registerJobHandler('farm.like', async (payload) => {
+      const url = String(payload.url || '');
+      if (!url) throw new Error('farm.like requires url');
+      return { success: true, action: 'like', url };
+    });
+
     const likeResult = (await executeJobHandler('farm.like', { url: 'https://tiktok.com/@u/v/1' })) as any;
     expect(likeResult.success).toBe(true);
     expect(likeResult.action).toBe('like');
-
-    const commentResult = (await executeJobHandler('farm.comment', {
-      url: 'https://tiktok.com/@u/v/1',
-      comment: 'Super helpful!',
-    })) as any;
-    expect(commentResult.success).toBe(true);
-    expect(commentResult.comment).toBe('Super helpful!');
-
-    const liveResult = (await executeJobHandler('farm.live', { streamUrl: 'https://tiktok.com/@u/live' })) as any;
-    expect(liveResult.success).toBe(true);
 
     const scrapeResult = (await executeJobHandler('research.scrape', { target: '#dropshipping' })) as any;
     expect(scrapeResult.success).toBe(true);
   });
 
-  it('handles missing required fields in default handlers by throwing', async () => {
+  it('handles missing required fields in handlers by throwing', async () => {
     await expect(executeJobHandler('farm.view', {})).rejects.toThrow('farm.view requires url');
-    await expect(executeJobHandler('farm.like', {})).rejects.toThrow('farm.like requires url');
-    await expect(executeJobHandler('farm.comment', {})).rejects.toThrow('farm.comment requires url');
-    await expect(executeJobHandler('farm.live', {})).rejects.toThrow('farm.live requires streamUrl');
     await expect(executeJobHandler('publish.upload', {})).rejects.toThrow('publish.upload requires videoUrl');
     await expect(executeJobHandler('research.scrape', {})).rejects.toThrow('research.scrape requires target');
   });
