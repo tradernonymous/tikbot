@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   calculateEngagementRate,
   calculateMedian,
+  calculateMAD,
   detectOutliers,
+  scoreOutlierAgainstBaseline,
   type VideoPerformanceMetric,
 } from '../outliers';
 
@@ -45,5 +47,34 @@ describe('Outlier Post Finder & Engagement Scoring', () => {
 
     const normal = results.find((r) => r.id === 'p1');
     expect(normal?.isOutlier).toBe(false);
+  });
+
+  it('calculates Median Absolute Deviation (MAD)', () => {
+    // Array: [1, 2, 3, 4, 5, 6, 9]. Median = 4
+    // Deviations: [3, 2, 1, 0, 1, 2, 5]. Sorted: [0, 1, 1, 2, 2, 3, 5]. Median = 2
+    expect(calculateMAD([1, 2, 3, 4, 5, 6, 9])).toBe(2);
+  });
+
+  it('requires >= minSampleSize baseline posts to declare outlier with high confidence', () => {
+    const baselineSmall = [10000, 12000, 11000]; // sample size 3 < minSampleSize (5)
+    const resultSmall = scoreOutlierAgainstBaseline(150000, baselineSmall, 5);
+
+    expect(resultSmall.hasSufficientBaseline).toBe(false);
+    expect(resultSmall.confidence).toBeLessThan(0.5);
+    expect(resultSmall.isOutlier).toBe(false);
+
+    // Full baseline of 8 posts (>= 5)
+    const baselineFull = [10000, 12000, 11000, 9500, 10500, 11500, 10200, 9800];
+    const resultFull1 = scoreOutlierAgainstBaseline(150000, baselineFull, 5);
+    const resultFull2 = scoreOutlierAgainstBaseline(150000, baselineFull, 5);
+
+    expect(resultFull1.hasSufficientBaseline).toBe(true);
+    expect(resultFull1.isOutlier).toBe(true);
+    expect(resultFull1.outlierScore).toBeGreaterThan(5);
+    expect(resultFull1.confidence).toBeGreaterThanOrEqual(0.8);
+    // Reproducibility test
+    expect(resultFull1.outlierScore).toBe(resultFull2.outlierScore);
+    expect(resultFull1.median).toBe(resultFull2.median);
+    expect(resultFull1.mad).toBe(resultFull2.mad);
   });
 });

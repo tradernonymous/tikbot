@@ -36,6 +36,65 @@ export function calculateMedian(numbers: number[]): number {
   return sorted[mid];
 }
 
+export function calculateMAD(numbers: number[]): number {
+  if (numbers.length === 0) return 0;
+  const median = calculateMedian(numbers);
+  const deviations = numbers.map((n) => Math.abs(n - median));
+  return calculateMedian(deviations);
+}
+
+export interface BaselineOutlierResult {
+  targetViews: number;
+  median: number;
+  mad: number;
+  sampleSize: number;
+  hasSufficientBaseline: boolean;
+  confidence: number;
+  outlierScore: number;
+  isOutlier: boolean;
+}
+
+export function scoreOutlierAgainstBaseline(
+  targetViews: number,
+  baselineViews: number[],
+  minSampleSize = 5,
+  thresholdMultiplier = 2.5
+): BaselineOutlierResult {
+  const sampleSize = baselineViews.length;
+  const hasSufficientBaseline = sampleSize >= minSampleSize;
+  const median = calculateMedian(baselineViews);
+  const mad = calculateMAD(baselineViews);
+
+  if (!hasSufficientBaseline || median <= 0) {
+    const rawRatio = median > 0 ? Number((targetViews / median).toFixed(2)) : 1.0;
+    return {
+      targetViews,
+      median,
+      mad,
+      sampleSize,
+      hasSufficientBaseline: false,
+      confidence: Number((Math.min(0.4, (sampleSize / minSampleSize) * 0.4)).toFixed(2)),
+      outlierScore: rawRatio,
+      isOutlier: false,
+    };
+  }
+
+  const outlierScore = Number((targetViews / median).toFixed(2));
+  const confidence = Number((Math.min(1.0, 0.7 + (sampleSize / (minSampleSize * 5)) * 0.3)).toFixed(2));
+  const isOutlier = outlierScore >= thresholdMultiplier;
+
+  return {
+    targetViews,
+    median,
+    mad,
+    sampleSize,
+    hasSufficientBaseline: true,
+    confidence,
+    outlierScore,
+    isOutlier,
+  };
+}
+
 export function detectOutliers(
   posts: VideoPerformanceMetric[],
   threshold = 2.5
