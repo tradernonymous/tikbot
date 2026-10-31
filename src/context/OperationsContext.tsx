@@ -995,14 +995,7 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
   };
 
   const publishNow = (jobId: string) => {
-    const randomVideoId = Math.floor(Math.random() * 8999999999) + 7100000000;
-    const liveUrl = `https://www.tiktok.com/@growth_creator_01/video/${randomVideoId}`;
-    setPublishJobs((prev) =>
-      prev.map((j) =>
-        j.id === jobId ? { ...j, status: 'PUBLISHED', publishedUrl: liveUrl } : j
-      )
-    );
-    recordAudit('PUBLISH_NOW', jobId, 'SUCCESS', `Post ${jobId} published live to TikTok! (${liveUrl})`);
+    recordAudit('PUBLISH_NOW', jobId, 'WARNING', `Direct upload requires configured worker engine driver`);
   };
 
   // Research Actions

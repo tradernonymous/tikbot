@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { StatusBadge } from '@/components/StatusBadge';
 import { EmptyState } from '@/components/EmptyState';
 import { AccessibleModal } from '@/components/AccessibleModal';
+import { NotImplementedCard } from '@/components/NotImplementedCard';
 import { SectionErrorBoundary } from '@/components/SectionErrorBoundary';
 import { useOperations, PublishJob, MediaAsset } from '@/context/OperationsContext';
 import {
@@ -76,12 +77,6 @@ export default function PublishingPage() {
   const handleReject = (id: string) => {
     rejectPublishJob(id);
     setToastMessage('Publish job rejected and slot freed.');
-    setTimeout(() => setToastMessage(null), 4000);
-  };
-
-  const handlePublishNow = (id: string) => {
-    publishNow(id);
-    setToastMessage('Headless browser completed upload! Post is now live on TikTok.');
     setTimeout(() => setToastMessage(null), 4000);
   };
 
@@ -241,6 +236,14 @@ export default function PublishingPage() {
         </div>
       </div>
 
+      {/* Automated Uploader Status Banner */}
+      <NotImplementedCard
+        featureName="Automated Headless Video Publisher"
+        explanation="Direct headless video uploading requires an audited Content Posting API app (video.publish scope) or authenticated Playwright stealth runner. Fake instant publishing has been eliminated."
+        issueNumber="3"
+        issueUrl="https://github.com/tikbot/tikbot/issues/3"
+      />
+
       {/* Publishing Queue Table */}
       <div className="bg-slate-900/40 border border-slate-800 rounded-xl overflow-hidden backdrop-blur-sm">
         <div className="p-4 border-b border-slate-800 flex items-center justify-between">
@@ -307,15 +310,9 @@ export default function PublishingPage() {
                           </button>
                         </div>
                       ) : job.status === 'SCHEDULED' ? (
-                        <div className="inline-flex gap-2">
-                          <button
-                            onClick={() => handlePublishNow(job.id)}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-semibold transition-all"
-                            title="Simulate automated upload right now"
-                          >
-                            <Play className="w-3.5 h-3.5 fill-current" />
-                            <span>Publish Now</span>
-                          </button>
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-800 text-cyan-400 text-[10px] font-mono">
+                          <Clock className="w-3 h-3" />
+                          <span>Queued for Worker</span>
                         </div>
                       ) : job.status === 'PUBLISHED' ? (
                         <div className="inline-flex items-center gap-2">
