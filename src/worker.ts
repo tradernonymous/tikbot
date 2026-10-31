@@ -5,8 +5,10 @@ import { globalAccountRateLimiter } from './farm/rate-limiter';
 import { globalKillSwitch, getPersistedKillSwitch } from './security/kill-switch';
 import { runStealthViewSession } from './farm/stealth-runner';
 import { ContentPublisher, UploaderDriver, PublisherNotConfiguredError } from './content/publisher';
+import { DouyinTikTokClient } from './research/download-api-client';
 
 let configuredUploaderDriver: UploaderDriver | null = null;
+let configuredDouyinTikTokClient: DouyinTikTokClient = new DouyinTikTokClient();
 
 export function setUploaderDriver(driver: UploaderDriver | null): void {
   configuredUploaderDriver = driver;
@@ -14,6 +16,14 @@ export function setUploaderDriver(driver: UploaderDriver | null): void {
 
 export function getUploaderDriver(): UploaderDriver | null {
   return configuredUploaderDriver;
+}
+
+export function setDouyinTikTokClient(client: DouyinTikTokClient): void {
+  configuredDouyinTikTokClient = client;
+}
+
+export function getDouyinTikTokClient(): DouyinTikTokClient {
+  return configuredDouyinTikTokClient;
 }
 
 export type JobHandler = (payload: Record<string, unknown>) => Promise<unknown>;
@@ -65,11 +75,23 @@ export function registerDefaultJobHandlers(): void {
   jobHandlerRegistry.set('research.scrape', async (payload) => {
     const target = String(payload.target || payload.keyword || payload.url || '');
     if (!target) throw new Error('research.scrape requires target');
+    const result = await configuredDouyinTikTokClient.extractVideoData(target);
     return {
       success: true,
       target,
       scrapedAt: new Date().toISOString(),
-      metrics: { views: 0, likes: 0, comments: 0 },
+      platform: result.platform,
+      postId: result.postId,
+      caption: result.caption,
+      author: result.author,
+      metrics: {
+        views: result.stats.views,
+        likes: result.stats.likes,
+        comments: result.stats.comments,
+        shares: result.stats.shares,
+      },
+      playUrl: result.playUrl,
+      coverUrl: result.coverUrl,
     };
   });
 }

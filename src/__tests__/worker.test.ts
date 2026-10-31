@@ -7,7 +7,9 @@ import {
   executeJobHandler,
   createDefaultQueueStorage,
   HandlerNotConfiguredError,
+  setDouyinTikTokClient,
 } from '../worker';
+import { DouyinTikTokClient } from '../research/download-api-client';
 import { JobQueueEngine, InMemoryQueueStorage } from '../queue';
 import { globalKillSwitch } from '../security/kill-switch';
 
@@ -27,6 +29,20 @@ describe('Worker Handler Registry & Execution (P4, P5 TDD)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     registerDefaultJobHandlers();
+    setDouyinTikTokClient(
+      new DouyinTikTokClient({
+        fetcher: vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({
+            status: 'success',
+            data: {
+              id: 'vid-default-1',
+              statistics: { play_count: 100, digg_count: 10, comment_count: 2 },
+            },
+          }),
+        }) as any,
+      })
+    );
     globalKillSwitch.setKillSwitch(false, 'test reset');
     storage = new InMemoryQueueStorage();
     queue = new JobQueueEngine(storage);
@@ -129,8 +145,9 @@ describe('Worker Handler Registry & Execution (P4, P5 TDD)', () => {
     expect(likeResult.success).toBe(true);
     expect(likeResult.action).toBe('like');
 
-    const scrapeResult = (await executeJobHandler('research.scrape', { target: '#dropshipping' })) as any;
+    const scrapeResult = (await executeJobHandler('research.scrape', { target: 'https://tiktok.com/@u/video/123' })) as any;
     expect(scrapeResult.success).toBe(true);
+    expect(scrapeResult.metrics.views).toBe(100);
   });
 
   it('handles missing required fields in handlers by throwing', async () => {
