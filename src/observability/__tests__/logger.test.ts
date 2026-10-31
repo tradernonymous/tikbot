@@ -56,10 +56,24 @@ describe('StructuredLogger', () => {
     logger.warn('Failed login attempt', {
       user: 'operator',
       password: 'myPassword123!',
+      nestedArray: [{ apiKey: 'secret-in-array' }],
     });
 
     const parsed = JSON.parse(output[0]);
     expect(parsed.user).toBe('operator');
     expect(parsed.password).toBe('[REDACTED]');
+    expect(parsed.nestedArray[0].apiKey).toBe('[REDACTED]');
+  });
+
+  it('supports debug and error logging methods', () => {
+    const output: string[] = [];
+    const logger = new StructuredLogger({ sink: (line) => output.push(line) });
+
+    logger.debug('Debug trace');
+    logger.error('Critical failure');
+
+    expect(output).toHaveLength(2);
+    expect(JSON.parse(output[0]).level).toBe('DEBUG');
+    expect(JSON.parse(output[1]).level).toBe('ERROR');
   });
 });
