@@ -1,8 +1,7 @@
 import React from 'react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { verifySessionToken } from '@/security/auth';
-import { getConfig } from '@/config';
+import { verifySessionToken, readSessionTokenFromCookies } from '@/security/auth';
 import { Sidebar } from '@/components/Sidebar';
 import { TopNavbar } from '@/components/TopNavbar';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -14,19 +13,17 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const cookieStore = await cookies();
-  const sessionToken = cookieStore.get('tikbot_session')?.value;
+  const sessionToken = readSessionTokenFromCookies((name) => cookieStore.get(name));
 
   if (!sessionToken) {
     redirect('/login');
   }
 
-  try {
-    const config = getConfig();
-    const verified = verifySessionToken(sessionToken, config.SESSION_SECRET);
-    if (!verified) {
-      redirect('/login');
-    }
-  } catch {
+  // Verify with SESSION_SECRET directly (same source as src/proxy.ts) so an unrelated
+  // config validation failure can never bounce a valid session between /login and /dashboard.
+  const secret = process.env.SESSION_SECRET;
+  const verified = secret ? verifySessionToken(sessionToken, secret) : null;
+  if (!verified) {
     redirect('/login');
   }
 

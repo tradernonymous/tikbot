@@ -219,3 +219,20 @@ export function handleSessionRefresh(auth: RequireSessionResult, response: NextR
   return response;
 }
 
+
+/** Cookie names accepted for the operator session (production uses the __Host- prefix). */
+export const SESSION_COOKIE_NAMES = ['__Host-tikbot_session', 'tikbot_session'] as const;
+
+/**
+ * Resolves the session token from a cookie reader, accepting both the
+ * production (__Host-) and development cookie names.
+ */
+export function readSessionTokenFromCookies(
+  get: (name: string) => { value: string } | undefined
+): string | undefined {
+  for (const name of SESSION_COOKIE_NAMES) {
+    const value = get(name)?.value;
+    if (value) return value;
+  }
+  return undefined;
+}
