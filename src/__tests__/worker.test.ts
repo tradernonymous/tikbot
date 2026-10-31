@@ -155,4 +155,41 @@ describe('Worker Handler Registry & Execution (P4, P5 TDD)', () => {
       delete process.env.DATABASE_URL;
     }
   });
+
+  it('enforces queue safety lock preventing concurrent account execution (B4)', async () => {
+    const { globalQueueSafetyLock } = await import('../queue/safety-lock');
+    vi.spyOn(globalQueueSafetyLock, 'acquireAccountLock').mockResolvedValueOnce(false);
+
+    const job = await queue.enqueue('farm.like', {
+      accountId: 'acc-busy',
+      url: 'https://tiktok.com/@u/v/10',
+    });
+
+    const processed = await processNextJob(queue, 'worker-busy-2');
+    expect(processed).toBe(true);
+
+    const updatedJob = await storage.getJob(job.id);
+    expect(updatedJob?.lastError).toContain('is locked by another active worker');
+  });
+
+  it('enforces velocity caps for account-bound jobs and fails when limit is reached (B4)', async () => {
+    const { globalAccountRateLimiter } = await import('../farm/rate-limiter');
+    globalAccountRateLimiter.resetAccount('acc-capped');
+
+    // Exhaust hourly LIKE cap (5 likes max)
+    for (let i = 0; i < 5; i++) {
+      globalAccountRateLimiter.recordAction('acc-capped', 'LIKE');
+    }
+
+    const job = await queue.enqueue('farm.like', {
+      accountId: 'acc-capped',
+      url: 'https://tiktok.com/@u/v/11',
+    });
+
+    const processed = await processNextJob(queue, 'worker-tester');
+    expect(processed).toBe(true);
+
+    const updatedJob = await storage.getJob(job.id);
+    expect(updatedJob?.lastError).toContain('Hourly cap exceeded');
+  });
 });

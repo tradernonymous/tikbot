@@ -1,5 +1,7 @@
 import { JobQueueEngine, InMemoryQueueStorage, QueueStorageAdapter } from './queue';
 import { PostgresQueueStorage } from './queue/postgres-queue-storage';
+import { globalQueueSafetyLock } from './queue/safety-lock';
+import { globalAccountRateLimiter } from './farm/rate-limiter';
 import { globalKillSwitch, getPersistedKillSwitch } from './security/kill-switch';
 import { runStealthViewSession } from './farm/stealth-runner';
 import { ContentPublisher } from './content/publisher';
@@ -92,17 +94,41 @@ export async function processNextJob(queue: JobQueueEngine, workerId: string): P
     return false;
   }
 
+  const accountId = job.payload.accountId ? String(job.payload.accountId) : undefined;
+  if (accountId) {
+    const lockAcquired = await globalQueueSafetyLock.acquireAccountLock(accountId, workerId);
+    if (!lockAcquired) {
+      await queue.failJob(job.id, `Account ${accountId} is locked by another active worker`);
+      return true;
+    }
+  }
+
   try {
     // Assert kill switch is still not active during execution
     globalKillSwitch.assertOperationsPermitted();
 
-    await executeJobHandler(job.name, job.payload);
+    if (accountId) {
+      const actionType = String(job.name.split('.')[1] || 'VIEW').toUpperCase();
+      const check = await globalAccountRateLimiter.canPerformAction(accountId, actionType as any);
+      if (!check.allowed) {
+        throw new Error(check.reason || 'Action velocity limit exceeded');
+      }
+      await executeJobHandler(job.name, job.payload);
+      await globalAccountRateLimiter.recordAction(accountId, actionType as any);
+    } else {
+      await executeJobHandler(job.name, job.payload);
+    }
+
     await queue.completeJob(job.id);
     return true;
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     await queue.failJob(job.id, errorMsg);
     return true;
+  } finally {
+    if (accountId) {
+      await globalQueueSafetyLock.releaseAccountLock(accountId, workerId);
+    }
   }
 }
 

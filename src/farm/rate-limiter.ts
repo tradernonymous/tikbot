@@ -179,3 +179,5 @@ export class AccountRateLimiter {
     return Object.assign(asyncPromise, { accountId });
   }
 }
+
+export const globalAccountRateLimiter = new AccountRateLimiter();
