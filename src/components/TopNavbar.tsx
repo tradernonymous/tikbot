@@ -23,6 +23,7 @@ import {
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useOperations } from '@/context/OperationsContext';
+import { NotificationCenter } from '@/components/NotificationCenter';
 
 export function TopNavbar() {
   const pathname = usePathname();
@@ -42,6 +43,23 @@ export function TopNavbar() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showQuickActions, setShowQuickActions] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+
+  useEffect(() => {
+    const fetchCounts = () => {
+      fetch('/api/v1/notifications/counts')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.counts) {
+            setUnreadCount(data.counts.total);
+          }
+        })
+        .catch(() => {});
+    };
+    fetchCounts();
+    const interval = setInterval(fetchCounts, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Keyboard shortcut Cmd+K / Ctrl+K
   useEffect(() => {
@@ -208,63 +226,25 @@ export function TopNavbar() {
             <button
               onClick={() => setShowNotifications((p) => !p)}
               className="p-2 rounded-lg bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 transition-all relative"
-              title="Recent Activity"
+              title="Notifications"
+              aria-label="Notification Center"
             >
               <Bell className="w-3.5 h-3.5" />
-              {notifications.length > 0 && (
-                <span className="w-2 h-2 rounded-full bg-cyan-400 absolute top-1.5 right-1.5" />
+              {unreadCount > 0 && (
+                <span
+                  aria-live="polite"
+                  className="w-2 h-2 rounded-full bg-cyan-400 absolute top-1.5 right-1.5"
+                />
               )}
             </button>
 
-            {showNotifications && (
-              <div className="absolute right-0 mt-2 w-80 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl p-3 z-50 text-xs">
-                <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-white">Live Event Notifications</span>
-                    <span className="text-[10px] text-cyan-400 font-mono">({notifications.length})</span>
-                  </div>
-                  {notifications.length > 0 && (
-                    <button
-                      onClick={clearNotifications}
-                      className="text-[10px] text-slate-400 hover:text-rose-400 flex items-center gap-1"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                      <span>Clear</span>
-                    </button>
-                  )}
-                </div>
-                <div className="space-y-2 text-slate-300 max-h-64 overflow-y-auto">
-                  {notifications.length === 0 ? (
-                    <div className="text-center py-4 text-slate-500 text-xs">No new notifications</div>
-                  ) : (
-                    notifications.map((notif) => (
-                      <div
-                        key={notif.id}
-                        className="p-2 rounded-lg bg-slate-950/80 border border-slate-800/60 text-[11px]"
-                      >
-                        <div className="flex items-center justify-between font-mono mb-0.5">
-                          <span
-                            className={
-                              notif.type === 'CRITICAL'
-                                ? 'text-rose-400 font-bold'
-                                : notif.type === 'WARNING'
-                                ? 'text-amber-400 font-semibold'
-                                : notif.type === 'SUCCESS'
-                                ? 'text-emerald-400 font-semibold'
-                                : 'text-cyan-400 font-semibold'
-                            }
-                          >
-                            {notif.title}
-                          </span>
-                          <span className="text-[10px] text-slate-500">{notif.timestamp}</span>
-                        </div>
-                        <p className="text-slate-300">{notif.description}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
+            <NotificationCenter
+              isOpen={showNotifications}
+              onClose={() => {
+                setShowNotifications(false);
+                setUnreadCount(0);
+              }}
+            />
           </div>
 
           {/* Master Emergency Kill Switch */}
