@@ -61,5 +61,25 @@ describe('OrderPipeline', () => {
         quantity: 10, // Min is 100
       });
     }).toThrow(/Quantity 10 is below service minimum of 100/);
+
+    // Test max quantity exceeded
+    expect(() => {
+      pipeline.createOrder({
+        serviceId: 'TIKTOK_VIEWS_ORGANIC',
+        targetUrl: 'https://www.tiktok.com/@creator/video/123456789',
+        quantity: 200_000, // Max is 100,000
+      });
+    }).toThrow(/exceeds service maximum/);
+  });
+
+  it('retrieves and lists orders in pipeline', () => {
+    const order = pipeline.createOrder({
+      serviceId: 'TIKTOK_LIKES_TARGETED',
+      targetUrl: 'https://www.tiktok.com/@creator/video/123',
+      quantity: 100,
+    });
+
+    expect(pipeline.getOrder(order.id)?.id).toBe(order.id);
+    expect(pipeline.listOrders()).toHaveLength(1);
   });
 });
