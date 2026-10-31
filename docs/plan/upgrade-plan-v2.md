@@ -91,17 +91,17 @@ Exit: research survives reload, device change and worker restart.
 
 ---
 
-# Phase 3 — Real execution (1.5 weeks)
+# Phase 3 — Real execution (1.5 weeks) [COMPLETED - see docs/tdd/phase-3-v2-evidence.md]
 
-| ID | Task | Acceptance |
-|---|---|---|
-| R3.1 | Stealth runner hardening: per-view proxy from pool, nav timeout, concurrency cap, cancellation token, per-view error taxonomy, repeated-run listener check. | Repeat-run test: no `MaxListenersExceeded`; missing browser fails fast |
-| R3.2 | Real `farm.like` / `farm.comment` / `farm.live` handlers: runner + comment bank + ledger + proof artifact (screenshot hash, DOM snippet). Keep-N/A when disabled by config. | Integration test with stubbed page: ledger row + proof stored; over-cap rejected |
-| R3.3 | Publish drivers behind `UploaderDriver`: `OfficialDriver` (Content Posting API: creator_info query → init → status poll; records `SELF_ONLY` when unaudited), `BrowserDriver` (session vault), `MockDriver` dev-only. | Contract tests for each driver; publish job stores `publishId` + provider status |
-| R3.4 | Retry policy per job type (max attempts, backoff + jitter, retryable vs terminal codes), dead-letter state with reason, idempotency key on enqueue. | Test: transient error retries, terminal error dead-letters once |
-| R3.5 | Job progress stream: SSE endpoint `GET /api/v1/jobs/stream`; UI updates tasks without 15s polling. | E2E: task card updates within 2s of job event |
-| R3.6 | Guards: per-account concurrency, global cap, ban-rate circuit breaker auto-pauses campaigns, kill switch checked before and during each job. | Test: 3 bans in 10 min pauses new work and emits incident notification |
-| R3.7 | Worker lifecycle: heartbeat, stale `RUNNING` reclaim, graceful drain on SIGTERM, `WORKER_PAUSED` flag honored within one poll. | Chaos test: kill -9 mid-job → job reclaimed once, not duplicated |
+| ID | Task | Acceptance | Status |
+|---|---|---|---|
+| R3.1 | Stealth runner hardening: per-view proxy from pool, nav timeout, concurrency cap, cancellation token, per-view error taxonomy, repeated-run listener check. | Repeat-run test: no `MaxListenersExceeded`; missing browser fails fast | COMPLETED (`4fa7b44d`) |
+| R3.2 | Real `farm.like` / `farm.comment` / `farm.live` handlers: runner + comment bank + ledger + proof artifact (screenshot hash, DOM snippet). Keep-N/A when disabled by config. | Integration test with stubbed page: ledger row + proof stored; over-cap rejected | COMPLETED (`8253e85c`) |
+| R3.3 | Publish drivers behind `UploaderDriver`: `OfficialDriver` (Content Posting API: creator_info query → init → status poll; records `SELF_ONLY` when unaudited), `BrowserDriver` (session vault), `MockDriver` dev-only. | Contract tests for each driver; publish job stores `publishId` + provider status | COMPLETED (`36e99b29`) |
+| R3.4 | Retry policy per job type (max attempts, backoff + jitter, retryable vs terminal codes), dead-letter state with reason, idempotency key on enqueue. | Test: transient error retries, terminal error dead-letters once | COMPLETED (`2d84d3c5`) |
+| R3.5 | Job progress stream: SSE endpoint `GET /api/v1/jobs/stream`; UI updates tasks without 15s polling. | E2E: task card updates within 2s of job event | COMPLETED (`14f75d42`) |
+| R3.6 | Guards: per-account concurrency, global cap, ban-rate circuit breaker auto-pauses campaigns, kill switch checked before and during each job. | Test: 3 bans in 10 min pauses new work and emits incident notification | COMPLETED (`e5440870`) |
+| R3.7 | Worker lifecycle: heartbeat, stale `RUNNING` reclaim, graceful drain on SIGTERM, `WORKER_PAUSED` flag honored within one poll. | Chaos test: kill -9 mid-job → job reclaimed once, not duplicated | COMPLETED (`fd417cf3`) |
 
 Exit: every job type either does real work or fails loudly; no fake URL, no fake counts.
 
@@ -199,3 +199,45 @@ Phase 4 and 5 may run in parallel with 2 after Phase 1 lands.
 ## Stop and ask
 
 Paid SMM/proxy spend, real TikTok credentials, Content Posting API audit, legal/ToS decisions, destructive DB operations.
+
+---
+
+# Addendum A — Trending repo research (Nov 2026)
+
+Searched GitHub for active repos, stars >100, pushed within last 12 months.
+
+| Repo | Stars | Last push | What to take | Where it lands |
+|---|---|---|---|---|
+| `Evil0ctal/Douyin_TikTok_Download_API` v5 | 21.0k | 2026-10-27 | Identity pool, per-(identity,endpoint) token bucket, circuit breaker per endpoint, watchlist, counter snapshots, archive, offline transcription, MCP | Phase 2 data layer, Phase 6 snapshots |
+| `zerodytrash/TikTok-Live-Connector` | 2.2k | 2026-10-19 | Real LIVE room events: viewer count, chat, likes, gifts, joins, follows, questions; Node, no creds | Phase 6 live-room intelligence, replaces fake live viewer counts |
+| `makiisthenes/TiktokAutoUploader` (autotok) | 1.2k | 2026-10-30 | TS SDK, Playwright login once per account, proxy per account, upload/schedule | Phase 3 BrowserDriver |
+| `Katzca/AutoSocial` | 1.5k | 2026-06-10 | Per-account queues, persisted browser profiles, cron/daily/instant scheduling, yt-dlp ingest, FFmpeg uniquifier | Phase 3 queueing, Phase 6 repurpose |
+| `inovector/mixpost` | 3.9k | 2026-03-16 | Recurring weekly slots, named queues auto-assigning to next slot, per-platform post versions, hashtag groups, conditional follow-up comments | Phase 6 calendar/composer |
+| `brightbeanxyz/brightbean-studio` | 2.6k | 2026-10-25 | Approval stages, unified inbox + sentiment + assignments, 7/30/90 analytics, media variants, per-event notification prefs, 90-day publish audit, Kanban idea board | Phase 1 notifications, Phase 6 inbox + reports |
+| `growchief/growchief` | 3.5k | 2025-10-13 | Stealth browser orchestration, concurrency, working hours, proxy per worker | Phase 3 runner |
+| `zhouxiaoka/autoclip` | 9.9k | 2026-10-31 | Long video → short clips, subtitles, covers, platform captions | Phase 6 repurpose |
+| `apify/apify-mcp-server` | 14.1k | 2026-10-31 | Paid fallback scraping via Actors | Phase 2 optional fallback (stop and ask) |
+| `bellingcat/tiktok-hashtag-analysis` | 379 | 2024-06-23 | Hashtag co-occurrence analysis | Phase 6 trend radar |
+| `cubernetes/TikTokCommentScraper` | 211 | 2023-08-05 | Comment harvesting approach | Phase 6 comment inbox |
+| `SamurAIGPT/postiz-cheap` | 1.4k | 2026-10-26 | Scheduler/composer UX | Phase 6 composer |
+
+## Addendum task deltas
+
+R2.8 — Swap the ad-hoc Download API client for a thin adapter over v5: health-tier identity selection, retry on 429, circuit breaker, request log. Do not vendor the Python service; keep it as a sidecar container.
+R2.9 — Use v5 watchlist + counter snapshot endpoints as the source for `PostSnapshot` and `MetricSample`, instead of building polling from scratch.
+R3.3 (revised) — BrowserDriver uses `autotok` (TS) with per-account proxy and persisted profile; OfficialDriver stays Content Posting API with SELF_ONLY honesty; MockDriver dev-only.
+R3.8 — Video variant pipeline: FFmpeg crop/trim/cover/subtitle burn-in for multi-account and multi-platform output. Label every variant; never post identical bytes across accounts.
+R6.12 — Live room intelligence: connect `tiktok-live-connector` per live target, store viewer count time series, chat events, likes/gifts; drive the live viewer feature from real events and capture questions into the comment inbox.
+G6.1 (revised) — Trend radar reads v5 hashtag/music endpoints; hashtag co-occurrence from `tiktok-hashtag-analysis` logic.
+G6.4 (revised) — Calendar adopts mixpost model: named queues, recurring weekly slots, auto-assign to next slot, per-account caps.
+G6.5 (revised) — Composer adds per-platform post versions, hashtag groups, follow-up first comment, reusable templates.
+G6.10 (revised) — Inbox adopts brightbean model: sentiment, assignment, threaded replies, backfill.
+G6.8 (revised) — Reports at 7/30/90 days, per-post table with views/engagement/watch-time proxy, export.
+F1.4 (revised) — Notification preferences per event type (in-app always, email/webhook optional).
+
+## Not adopting
+
+- TikTok Research API (academic-only, VCE-only).
+- `drawrowfly/tiktok-scraper` (stale since 2023).
+- `xtekky/TikTok-ViewBot` (pure view inflation, no telemetry, highest ban risk).
+- Any repo that requires handing account credentials to a hosted third party.
