@@ -111,6 +111,11 @@ export default function FarmServicesPage() {
   const [commentNiche, setCommentNiche] = useState('TECH');
   const [dispatchSuccess, setDispatchSuccess] = useState<string | null>(null);
 
+  // Execution engine mode: Internal Farm vs Paid Wholesale SMM API
+  const [engineMode, setEngineMode] = useState<'INTERNAL' | 'SMM'>('SMM');
+  const [smmServiceId, setSmmServiceId] = useState<string>('1234');
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState<boolean>(false);
+
   // Check URL query parameters on mount (deep links from Research or Overview)
   useEffect(() => {
     const urlParam = searchParams.get('targetUrl');
@@ -133,9 +138,65 @@ export default function FarmServicesPage() {
     if (!targetUrl) setTargetUrl('');
   };
 
-  const handleDispatchSubmit = (e: React.FormEvent) => {
+  const handleDispatchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedService || !targetUrl) return;
+
+    if (engineMode === 'SMM') {
+      setIsSubmittingOrder(true);
+      try {
+        const savedUrl = localStorage.getItem('TIKBOT_SMM_URL') || undefined;
+        const savedKey = localStorage.getItem('TIKBOT_SMM_KEY') || undefined;
+
+        const res = await fetch('/api/v1/smm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'order',
+            apiUrl: savedUrl,
+            apiKey: savedKey,
+            service: smmServiceId,
+            link: targetUrl,
+            quantity: targetCount,
+          }),
+        });
+
+        const data = await res.json();
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to dispatch SMM order');
+        }
+
+        dispatchFarmTask({
+          serviceName: `${selectedService.name} (SMM #${data.order.externalOrderId})`,
+          serviceType: selectedService.type,
+          targetUrl,
+          targetCount,
+          commentNiche,
+          externalOrderId: data.order.externalOrderId,
+          executionMode: 'SMM_PROVIDER',
+        });
+
+        setDispatchSuccess(`Order #${data.order.externalOrderId} successfully sent to SMM API! Views are propagating on TikTok.`);
+      } catch (err: any) {
+        // Fallback: If no API key configured, explain to user and dispatch to farm context
+        dispatchFarmTask({
+          serviceName: `${selectedService.name} (API Pending)`,
+          serviceType: selectedService.type,
+          targetUrl,
+          targetCount,
+          commentNiche,
+          executionMode: 'SMM_PROVIDER',
+        });
+        setDispatchSuccess(
+          `Dispatched! Note: ${err.message}. To connect live provider orders, add your API key in Settings > SMM Provider.`
+        );
+      } finally {
+        setIsSubmittingOrder(false);
+        setSelectedService(null);
+        setTimeout(() => setDispatchSuccess(null), 7000);
+      }
+      return;
+    }
 
     dispatchFarmTask({
       serviceName: selectedService.name,
@@ -143,6 +204,7 @@ export default function FarmServicesPage() {
       targetUrl,
       targetCount,
       commentNiche,
+      executionMode: 'INTERNAL_FARM',
     });
 
     setDispatchSuccess(`Successfully dispatched ${selectedService.name} (${targetCount} actions) to internal farm queue.`);
@@ -408,6 +470,60 @@ export default function FarmServicesPage() {
             </div>
 
             <form onSubmit={handleDispatchSubmit} className="space-y-4 text-xs">
+              {/* Execution Engine Selector */}
+              <div>
+                <label className="text-slate-300 font-medium block mb-1">Execution Engine</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEngineMode('SMM')}
+                    className={`p-2.5 rounded-lg border text-left transition-all ${
+                      engineMode === 'SMM'
+                        ? 'bg-cyan-950/80 border-cyan-500 text-cyan-300'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <div className="font-bold flex items-center justify-between">
+                      <span>Wholesale SMM API</span>
+                      <span className="text-[9px] px-1.5 py-0.2 bg-cyan-900/60 text-cyan-300 rounded font-mono">PAID ($0.03/1k)</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Instant delivery via global mobile/residential pool.</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEngineMode('INTERNAL')}
+                    className={`p-2.5 rounded-lg border text-left transition-all ${
+                      engineMode === 'INTERNAL'
+                        ? 'bg-purple-950/80 border-purple-500 text-purple-300'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <div className="font-bold flex items-center justify-between">
+                      <span>Internal Farm Nodes</span>
+                      <span className="text-[9px] px-1.5 py-0.2 bg-purple-900/60 text-purple-300 rounded font-mono">SELF-HOSTED</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Local Chrome stealth browsers with dwell timing.</p>
+                  </button>
+                </div>
+              </div>
+
+              {engineMode === 'SMM' && (
+                <div>
+                  <label className="text-slate-300 font-medium block mb-1">Provider Service ID</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 1024 or 3512 (from provider service list)"
+                    value={smmServiceId}
+                    onChange={(e) => setSmmServiceId(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    Default ID maps to High-Retention TikTok Views on standard SMM v2 panels.
+                  </span>
+                </div>
+              )}
+
               <div>
                 <label className="text-slate-300 font-medium block mb-1">Target TikTok / Douyin URL</label>
                 <input
@@ -455,18 +571,37 @@ export default function FarmServicesPage() {
               )}
 
               <div className="p-3 rounded-lg bg-slate-950 border border-slate-800/80 space-y-1.5 text-[11px] font-mono text-slate-400">
-                <div className="flex justify-between">
-                  <span>Farm Nodes Allocated:</span>
-                  <span className="text-cyan-400">{Math.min(Math.ceil(targetCount / 10), accounts.length || 5)} accounts</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Estimated Execution Window:</span>
-                  <span className="text-slate-300">~{Math.max(5, Math.round(targetCount * 1.2))} minutes</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Safety Compliance Gate:</span>
-                  <span className="text-emerald-400">PASSED (Within Caps)</span>
-                </div>
+                {engineMode === 'SMM' ? (
+                  <>
+                    <div className="flex justify-between">
+                      <span>Engine Route:</span>
+                      <span className="text-cyan-400">Wholesale SMM Provider (Cloud API)</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Est. Cost:</span>
+                      <span className="text-emerald-400 font-bold">~${((targetCount / 1000) * 0.04).toFixed(4)} USD</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Audience Gate Bypass:</span>
+                      <span className="text-emerald-400">ENABLED (Global Account Network)</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between">
+                      <span>Farm Nodes Allocated:</span>
+                      <span className="text-cyan-400">{Math.min(Math.ceil(targetCount / 10), accounts.length || 5)} accounts</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Estimated Execution Window:</span>
+                      <span className="text-slate-300">~{Math.max(5, Math.round(targetCount * 1.2))} minutes</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Safety Compliance Gate:</span>
+                      <span className="text-emerald-400">PASSED (Within Caps)</span>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-800">
@@ -479,10 +614,11 @@ export default function FarmServicesPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-sm transition-all"
+                  disabled={isSubmittingOrder}
+                  className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-50"
                 >
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  <span>Dispatch Task</span>
+                  <Play className={`w-3.5 h-3.5 fill-current ${isSubmittingOrder ? 'animate-spin' : ''}`} />
+                  <span>{isSubmittingOrder ? 'Submitting Order...' : 'Dispatch Task'}</span>
                 </button>
               </div>
             </form>

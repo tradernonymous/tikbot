@@ -2,6 +2,8 @@ import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
+import { generateDeviceFingerprint } from './fingerprint';
 
 puppeteer.use(StealthPlugin());
 
@@ -13,8 +15,30 @@ export interface ViewRunOptions {
   headless?: boolean | 'new';
   chromePath?: string;
   cookiesPath?: string;
+  /**
+   * 'unique-guest' (default): strips single-user sessionid/uid_tt and mints a fresh odin_tt + fingerprint
+   * per view so TikTok counts each session as a distinct anonymous viewer (Evil0ctal / growchief pattern).
+   * 'authenticated': injects the full saved account session (needed for age/comfort-restricted posts,
+   * though limited to 1 counted view per unique account).
+   */
+  identityMode?: 'unique-guest' | 'authenticated';
   onProgress?: (completed: number, target: number, dwellSecs: number) => void;
 }
+
+const SINGLE_ACCOUNT_COOKIE_NAMES = new Set([
+  'sessionid',
+  'sessionid_ss',
+  'sid_tt',
+  'sid_guard',
+  'uid_tt',
+  'uid_tt_ss',
+  'multi_sids',
+  'store-idc',
+  'store-country-code',
+  'cmpl_token',
+  'd_ticket',
+  'ttwid', // stripped so TikTok issues a fresh visitor ttwid per browser instance
+]);
 
 function loadSavedCookies(customPath?: string): any[] {
   const candidates = [
@@ -39,6 +63,22 @@ function loadSavedCookies(customPath?: string): any[] {
   return [];
 }
 
+function buildSessionCookies(baseCookies: any[], mode: 'unique-guest' | 'authenticated'): any[] {
+  if (mode === 'authenticated') {
+    return baseCookies;
+  }
+  // Unique-guest mode: keep verification cookies (s_v_web_id, tt_chain_token, msToken)
+  // and generate a fresh 160-hex-character odin_tt device identifier per view
+  return baseCookies
+    .filter((c) => !SINGLE_ACCOUNT_COOKIE_NAMES.has(c.name))
+    .map((c) => {
+      if (c.name === 'odin_tt') {
+        return { ...c, value: crypto.randomBytes(80).toString('hex') };
+      }
+      return c;
+    });
+}
+
 export async function runStealthViewSession(options: ViewRunOptions): Promise<{
   successfulViews: number;
   failedViews: number;
@@ -49,20 +89,23 @@ export async function runStealthViewSession(options: ViewRunOptions): Promise<{
   const maxDwell = options.maxDwellSeconds ?? 16;
   const chromePath = options.chromePath || '/usr/bin/google-chrome';
   const headless = options.headless ?? true;
-  const cookies = loadSavedCookies(options.cookiesPath);
+  const identityMode = options.identityMode ?? 'unique-guest';
+  const baseCookies = loadSavedCookies(options.cookiesPath);
 
   let successfulViews = 0;
   let failedViews = 0;
   const startTime = Date.now();
 
   console.log(`[StealthRunner] Starting real view runner targeting: ${options.url}`);
-  console.log(`[StealthRunner] Planned views: ${targetViews} (Dwell: ${minDwell}s - ${maxDwell}s)`);
-  console.log(`[StealthRunner] Loaded ${cookies.length} authenticated session cookies.`);
+  console.log(`[StealthRunner] Planned views: ${targetViews} | Mode: ${identityMode} (Dwell: ${minDwell}s - ${maxDwell}s)`);
 
   for (let i = 1; i <= targetViews; i++) {
     let browser = null;
     try {
-      console.log(`[StealthRunner] [View ${i}/${targetViews}] Launching stealth browser instance...`);
+      const fp = generateDeviceFingerprint('DESKTOP', i + Math.floor(Math.random() * 10000));
+      const sessionCookies = buildSessionCookies(baseCookies, identityMode);
+
+      console.log(`[StealthRunner] [View ${i}/${targetViews}] Launching stealth browser (odin_tt rotated, UA: ${fp.userAgent.slice(0, 45)}...)...`);
       browser = await puppeteer.launch({
         executablePath: chromePath,
         headless: headless as any,
@@ -75,29 +118,26 @@ export async function runStealthViewSession(options: ViewRunOptions): Promise<{
           '--no-zygote',
           '--disable-gpu',
           '--disable-blink-features=AutomationControlled',
-          '--window-size=1280,800',
+          `--window-size=${fp.viewport.width},${fp.viewport.height}`,
         ],
       });
 
       const page = await browser.newPage();
-      await page.setViewport({ width: 1280, height: 800 });
+      await page.setViewport({ width: fp.viewport.width, height: fp.viewport.height });
+      await page.setUserAgent(fp.userAgent);
 
-      // Spoof realistic User-Agent matching local environment
-      await page.setUserAgent(
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      );
-
-      // Inject authenticated session cookies to bypass login intercepts
-      if (cookies.length > 0) {
-        await page.setCookie(...cookies);
+      if (sessionCookies.length > 0) {
+        await page.setCookie(...sessionCookies);
       }
 
-      // Navigate to TikTok post
       console.log(`[StealthRunner] [View ${i}/${targetViews}] Navigating to post page...`);
       await page.goto(options.url, {
-        waitUntil: 'networkidle2',
+        waitUntil: 'domcontentloaded',
         timeout: 35000,
       });
+
+      // Wait 4s for TikTok SPA hydration redirects to settle (prevents ExecutionContext destroyed)
+      await new Promise((r) => setTimeout(r, 4000));
 
       // Random dwell time for algorithmic view retention
       const dwell = Math.floor(Math.random() * (maxDwell - minDwell + 1)) + minDwell;
@@ -105,27 +145,38 @@ export async function runStealthViewSession(options: ViewRunOptions): Promise<{
       // Humanized mouse movement
       await page.mouse.move(200 + Math.random() * 300, 300 + Math.random() * 200);
 
-      // Inspect whether this is video or photo carousel
-      const pageType = await page.evaluate(() => {
+      // Inspect post state & check for Audience Comfort / Age Restriction gate
+      const pageState = await page.evaluate(() => {
+        const bodyText = document.body?.innerText || '';
+        const isComfortRestricted =
+          bodyText.includes('not be comfortable for some audiences') ||
+          document.title.includes('Log in | TikTok');
         const video = document.querySelector('video');
         if (video) {
           video.muted = true;
           video.play().catch(() => {});
-          return { type: 'video', hasVideo: true };
+          return { type: 'video', hasVideo: true, isComfortRestricted };
         }
-        return { type: 'photo', hasVideo: false };
+        return { type: 'photo', hasVideo: false, isComfortRestricted };
       });
 
-      console.log(`[StealthRunner] [View ${i}/${targetViews}] Detected format: ${pageType.type}. Watching for ${dwell}s completion dwell...`);
+      if (pageState.isComfortRestricted && identityMode === 'unique-guest') {
+        console.warn(
+          `[StealthRunner] [View ${i}/${targetViews}] WARNING: TikTok flagged this post as "Not comfortable for some audiences" (Age/Comfort Gate). Guest views are blocked by TikTok on this specific post.`
+        );
+      }
+
+      console.log(`[StealthRunner] [View ${i}/${targetViews}] Detected format: ${pageState.type}. Watching for ${dwell}s completion dwell...`);
 
       // Natural interaction: if photo carousel, swipe / navigate through slides
-      if (pageType.type === 'photo') {
-        const halfDwell = Math.floor(dwell / 2);
-        await new Promise((r) => setTimeout(r, halfDwell * 1000));
-        // Simulate press ArrowRight to browse next photo slide
+      if (pageState.type === 'photo') {
+        const thirdDwell = Math.floor(dwell / 3);
+        await new Promise((r) => setTimeout(r, thirdDwell * 1000));
         await page.keyboard.press('ArrowRight').catch(() => {});
         await page.mouse.move(350 + Math.random() * 100, 400 + Math.random() * 100);
-        await new Promise((r) => setTimeout(r, (dwell - halfDwell) * 1000));
+        await new Promise((r) => setTimeout(r, thirdDwell * 1000));
+        await page.keyboard.press('ArrowRight').catch(() => {});
+        await new Promise((r) => setTimeout(r, (dwell - thirdDwell * 2) * 1000));
       } else {
         // Video post: watch video for full dwell
         await new Promise((r) => setTimeout(r, dwell * 1000));

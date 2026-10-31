@@ -106,4 +106,17 @@ export class SMMProviderAdapter {
       currency: data.currency,
     };
   }
+
+  async getServices(): Promise<any[]> {
+    const data = await this.fetcher(this.config.apiUrl, {
+      key: this.config.apiKey,
+      action: 'services',
+    });
+
+    if (data && data.error) {
+      throw new Error(`Provider ${this.providerName} Error: ${data.error}`);
+    }
+
+    return Array.isArray(data) ? data : [];
+  }
 }

@@ -54,6 +54,8 @@ export interface ActiveFarmTask {
   assignedNodes: number;
   startedAt: string;
   commentNiche?: string;
+  externalOrderId?: string;
+  executionMode?: 'INTERNAL_FARM' | 'SMM_PROVIDER';
 }
 
 export interface PublishJob {
@@ -140,6 +142,8 @@ interface OperationsContextType {
     targetUrl: string;
     targetCount: number;
     commentNiche?: string;
+    externalOrderId?: string;
+    executionMode?: 'INTERNAL_FARM' | 'SMM_PROVIDER';
   }) => void;
   pauseTask: (taskId: string) => void;
   resumeTask: (taskId: string) => void;
@@ -618,6 +622,8 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     targetUrl: string;
     targetCount: number;
     commentNiche?: string;
+    externalOrderId?: string;
+    executionMode?: 'INTERNAL_FARM' | 'SMM_PROVIDER';
   }) => {
     const newTask: ActiveFarmTask = {
       id: `task-${Date.now().toString().slice(-4)}`,
@@ -630,9 +636,11 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
       assignedNodes: Math.min(Math.ceil(data.targetCount / 10), accounts.length || 5),
       startedAt: 'Just now',
       commentNiche: data.commentNiche,
+      externalOrderId: data.externalOrderId,
+      executionMode: data.executionMode || 'INTERNAL_FARM',
     };
     setFarmTasks((prev) => [newTask, ...prev]);
-    recordAudit('DISPATCH_FARM_TASK', data.serviceName, 'SUCCESS', `Dispatched ${data.serviceName} (${data.targetCount} actions) to farm nodes`);
+    recordAudit('DISPATCH_FARM_TASK', data.serviceName, 'SUCCESS', `Dispatched ${data.serviceName} (${data.targetCount} actions${data.executionMode ? ` via ${data.executionMode}` : ''})`);
   };
 
   const pauseTask = (taskId: string) => {
