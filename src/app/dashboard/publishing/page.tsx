@@ -2,6 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { StatusBadge } from '@/components/StatusBadge';
+import { EmptyState } from '@/components/EmptyState';
+import { AccessibleModal } from '@/components/AccessibleModal';
+import { SectionErrorBoundary } from '@/components/SectionErrorBoundary';
 import { useOperations, PublishJob, MediaAsset } from '@/context/OperationsContext';
 import {
   Calendar,
@@ -104,7 +107,8 @@ export default function PublishingPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <SectionErrorBoundary sectionName="Content & Auto-Publishing">
+      <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -246,216 +250,216 @@ export default function PublishingPage() {
           </span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 uppercase font-mono text-[11px]">
-                <th className="py-3 px-4 font-medium">Caption / Hook</th>
-                <th className="py-3 px-4 font-medium">Platform</th>
-                <th className="py-3 px-4 font-medium">Target Account</th>
-                <th className="py-3 px-4 font-medium">Scheduled Time</th>
-                <th className="py-3 px-4 font-medium">Status</th>
-                <th className="py-3 px-4 font-medium text-right">Approval & Publish Controls</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60 text-slate-300">
-              {publishJobs.map((job) => (
-                <tr key={job.id} className="hover:bg-slate-800/20 transition-colors">
-                  <td className="py-3 px-4 font-medium text-white max-w-[280px] truncate">
-                    {job.title}
-                  </td>
-                  <td className="py-3 px-4 font-mono text-xs text-indigo-400">{job.platform}</td>
-                  <td className="py-3 px-4 font-mono text-xs text-cyan-400">
-                    {job.account}
-                  </td>
-                  <td className="py-3 px-4 font-mono text-xs text-slate-300">
-                    {job.scheduledAt}
-                  </td>
-                  <td className="py-3 px-4">
-                    <StatusBadge status={job.status} />
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    {job.status === 'PENDING_APPROVAL' ? (
-                      <div className="inline-flex gap-2">
-                        <button
-                          onClick={() => handleApprove(job.id)}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 text-[10px] font-semibold transition-all"
-                        >
-                          <Check className="w-3 h-3" />
-                          <span>Approve</span>
-                        </button>
-                        <button
-                          onClick={() => handleReject(job.id)}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded bg-rose-950/80 hover:bg-rose-900 border border-rose-700/60 text-rose-300 text-[10px] font-semibold transition-all"
-                        >
-                          <X className="w-3 h-3" />
-                          <span>Reject</span>
-                        </button>
-                      </div>
-                    ) : job.status === 'SCHEDULED' ? (
-                      <div className="inline-flex gap-2">
-                        <button
-                          onClick={() => handlePublishNow(job.id)}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-semibold transition-all"
-                          title="Simulate automated upload right now"
-                        >
-                          <Play className="w-3 h-3 fill-current" />
-                          <span>Publish Now</span>
-                        </button>
-                      </div>
-                    ) : job.status === 'PUBLISHED' ? (
-                      <div className="inline-flex items-center gap-2">
-                        <a
-                          href={job.publishedUrl || 'https://www.tiktok.com'}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-cyan-400 hover:underline text-[11px] font-mono flex items-center gap-1"
-                        >
-                          <span>Live Link</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                        <button
-                          onClick={() => {
-                            const urlToBoost = job.publishedUrl || 'https://www.tiktok.com';
-                            router.push(`/dashboard/panel?targetUrl=${encodeURIComponent(urlToBoost)}&service=VIEW`);
-                          }}
-                          className="px-2 py-0.5 rounded bg-cyan-950/60 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 text-[10px] font-semibold"
-                        >
-                          Boost
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="text-[11px] font-mono text-slate-500">CANCELLED</span>
-                    )}
-                  </td>
+        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+          {publishJobs.length === 0 ? (
+            <div className="p-8">
+              <EmptyState
+                title="No Publishing Slots Scheduled"
+                description="The publishing queue is empty. Use the post composer or select an asset from the media library to schedule a slot."
+                actionText="Schedule Post"
+                onAction={() => setShowScheduleModal(true)}
+              />
+            </div>
+          ) : (
+            <table className="w-full text-left text-xs">
+              <thead className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800">
+                <tr className="bg-slate-950/80 text-slate-400 uppercase font-mono text-[11px]">
+                  <th className="py-3 px-4 font-medium">Caption / Hook</th>
+                  <th className="py-3 px-4 font-medium">Platform</th>
+                  <th className="py-3 px-4 font-medium">Target Account</th>
+                  <th className="py-3 px-4 font-medium">Scheduled Time</th>
+                  <th className="py-3 px-4 font-medium">Status</th>
+                  <th className="py-3 px-4 font-medium text-right">Approval & Publish Controls</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                {publishJobs.map((job) => (
+                  <tr key={job.id} className="hover:bg-slate-800/20 transition-colors">
+                    <td className="py-3 px-4 font-medium text-white max-w-[280px] truncate">
+                      {job.title}
+                    </td>
+                    <td className="py-3 px-4 font-mono text-xs text-indigo-400">{job.platform}</td>
+                    <td className="py-3 px-4 font-mono text-xs text-cyan-400">
+                      {job.account}
+                    </td>
+                    <td className="py-3 px-4 font-mono text-xs text-slate-300">
+                      {job.scheduledAt}
+                    </td>
+                    <td className="py-3 px-4">
+                      <StatusBadge status={job.status} />
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      {job.status === 'PENDING_APPROVAL' ? (
+                        <div className="inline-flex gap-2">
+                          <button
+                            onClick={() => handleApprove(job.id)}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 text-[10px] font-semibold transition-all"
+                          >
+                            <Check className="w-3 h-3" />
+                            <span>Approve</span>
+                          </button>
+                          <button
+                            onClick={() => handleReject(job.id)}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded bg-rose-950/80 hover:bg-rose-900 border border-rose-700/60 text-rose-300 text-[10px] font-semibold transition-all"
+                          >
+                            <X className="w-3 h-3" />
+                            <span>Reject</span>
+                          </button>
+                        </div>
+                      ) : job.status === 'SCHEDULED' ? (
+                        <div className="inline-flex gap-2">
+                          <button
+                            onClick={() => handlePublishNow(job.id)}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-semibold transition-all"
+                            title="Simulate automated upload right now"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-current" />
+                            <span>Publish Now</span>
+                          </button>
+                        </div>
+                      ) : job.status === 'PUBLISHED' ? (
+                        <div className="inline-flex items-center gap-2">
+                          <a
+                            href={job.publishedUrl || 'https://www.tiktok.com'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-cyan-400 hover:underline text-[11px] font-mono flex items-center gap-1"
+                          >
+                            <span>Live Link</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                          <button
+                            onClick={() => {
+                              const urlToBoost = job.publishedUrl || 'https://www.tiktok.com';
+                              router.push(`/dashboard/panel?targetUrl=${encodeURIComponent(urlToBoost)}&service=VIEW`);
+                            }}
+                            className="px-2 py-0.5 rounded bg-cyan-950/60 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 text-[10px] font-semibold"
+                          >
+                            Boost
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] font-mono text-slate-500">CANCELLED</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
       {/* Schedule Post Composer Modal */}
-      {showScheduleModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-cyan-400" />
-                <h3 className="text-sm font-bold text-white">Post Composer & Scheduler</h3>
-              </div>
-              <button
-                onClick={() => setShowScheduleModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+      <AccessibleModal
+        isOpen={showScheduleModal}
+        onClose={() => setShowScheduleModal(false)}
+        title="Post Composer & Scheduler"
+        maxWidth="max-w-lg"
+      >
+        <form onSubmit={handleScheduleSubmit} className="space-y-4 text-xs">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-slate-300 font-medium block mb-1">Target Account Node</label>
+              <select
+                value={targetAccount}
+                onChange={(e) => setTargetAccount(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
               >
-                <X className="w-5 h-5" />
-              </button>
+                {accounts.map((acc) => (
+                  <option key={acc.id} value={`@${acc.username}`}>
+                    @{acc.username} ({acc.platform})
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <form onSubmit={handleScheduleSubmit} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-slate-300 font-medium block mb-1">Target Account Node</label>
-                  <select
-                    value={targetAccount}
-                    onChange={(e) => setTargetAccount(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
-                  >
-                    {accounts.map((acc) => (
-                      <option key={acc.id} value={`@${acc.username}`}>
-                        @{acc.username} ({acc.platform})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-slate-300 font-medium block mb-1">Publishing Platform</label>
-                  <select
-                    value={platform}
-                    onChange={(e) => setPlatform(e.target.value as any)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
-                  >
-                    <option value="TIKTOK">TikTok (9:16)</option>
-                    <option value="INSTAGRAM">Instagram Reels</option>
-                    <option value="YOUTUBE_SHORTS">YouTube Shorts</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-slate-300 font-medium">Caption & Viral Hashtags</label>
-                  <span
-                    className={`font-mono text-[10px] ${
-                      caption.length > charLimit ? 'text-rose-400' : 'text-slate-400'
-                    }`}
-                  >
-                    {caption.length} / {charLimit}
-                  </span>
-                </div>
-                <textarea
-                  required
-                  rows={4}
-                  placeholder="Write your viral hook, caption, and hashtags here..."
-                  value={caption}
-                  onChange={(e) => setCaption(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-xs focus:outline-none focus:border-cyan-500"
-                />
-
-                {/* Quick Hashtag Chips */}
-                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                  <span className="text-[10px] text-slate-400">Quick Tags:</span>
-                  {['#fyp', '#viral', '#trending', '#productivity', '#tech'].map((tag) => (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => addTag(tag)}
-                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 text-[10px] font-mono transition-colors"
-                    >
-                      {tag}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="p-3 rounded-lg bg-slate-950 border border-slate-800/80 space-y-1.5 text-[11px] font-mono text-slate-400">
-                <div className="flex items-center justify-between">
-                  <span>Auto-Launch Farm Boost on Publish:</span>
-                  <input
-                    type="checkbox"
-                    checked={autoBoostOnPublish}
-                    onChange={(e) => setAutoBoostOnPublish(e.target.checked)}
-                    className="accent-cyan-500 w-4 h-4 cursor-pointer"
-                  />
-                </div>
-                <div className="flex justify-between text-slate-400">
-                  <span>Publishing Bridge:</span>
-                  <span className="text-slate-300 font-medium">TiktokAutoUploader Headless</span>
-                </div>
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setShowScheduleModal(false)}
-                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={caption.length > charLimit}
-                  className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-50"
-                >
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span>Queue for Operator Sign-Off</span>
-                </button>
-              </div>
-            </form>
+            <div>
+              <label className="text-slate-300 font-medium block mb-1">Publishing Platform</label>
+              <select
+                value={platform}
+                onChange={(e) => setPlatform(e.target.value as any)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
+              >
+                <option value="TIKTOK">TikTok (9:16)</option>
+                <option value="INSTAGRAM">Instagram Reels</option>
+                <option value="YOUTUBE_SHORTS">YouTube Shorts</option>
+              </select>
+            </div>
           </div>
-        </div>
-      )}
+
+          <div>
+            <div className="flex justify-between items-center mb-1">
+              <label className="text-slate-300 font-medium">Caption & Viral Hashtags</label>
+              <span
+                className={`font-mono text-[10px] ${
+                  caption.length > charLimit ? 'text-rose-400' : 'text-slate-400'
+                }`}
+              >
+                {caption.length} / {charLimit}
+              </span>
+            </div>
+            <textarea
+              required
+              rows={4}
+              placeholder="Write your viral hook, caption, and hashtags here..."
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-xs focus:outline-none focus:border-cyan-500"
+            />
+
+            {/* Quick Hashtag Chips */}
+            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+              <span className="text-[10px] text-slate-400">Quick Tags:</span>
+              {['#fyp', '#viral', '#trending', '#productivity', '#tech'].map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => addTag(tag)}
+                  className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 text-[10px] font-mono transition-colors"
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-3 rounded-lg bg-slate-950 border border-slate-800/80 space-y-1.5 text-[11px] font-mono text-slate-400">
+            <div className="flex items-center justify-between">
+              <span>Auto-Launch Farm Boost on Publish:</span>
+              <input
+                type="checkbox"
+                checked={autoBoostOnPublish}
+                onChange={(e) => setAutoBoostOnPublish(e.target.checked)}
+                className="accent-cyan-500 w-4 h-4 cursor-pointer"
+              />
+            </div>
+            <div className="flex justify-between text-slate-400">
+              <span>Publishing Bridge:</span>
+              <span className="text-slate-300 font-medium">TiktokAutoUploader Headless</span>
+            </div>
+          </div>
+
+          <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-800">
+            <button
+              type="button"
+              onClick={() => setShowScheduleModal(false)}
+              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={caption.length > charLimit}
+              className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-50"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Queue for Operator Sign-Off</span>
+            </button>
+          </div>
+        </form>
+      </AccessibleModal>
     </div>
+  </SectionErrorBoundary>
   );
 }

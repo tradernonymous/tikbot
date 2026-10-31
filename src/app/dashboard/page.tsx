@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { StatCard } from '@/components/StatCard';
 import { StatusBadge } from '@/components/StatusBadge';
+import { EmptyState } from '@/components/EmptyState';
+import { SectionErrorBoundary } from '@/components/SectionErrorBoundary';
 import { useOperations } from '@/context/OperationsContext';
 import {
   Users,
@@ -49,8 +51,19 @@ export default function DashboardOverview() {
   const totalPendingApprovals = pendingCampaigns.length + pendingPublish.length;
   const runningTasksCount = farmTasks.filter((t) => t.status === 'RUNNING').length;
 
+  const warmedAccounts = accounts.filter(
+    (a) => a.status === 'ACTIVE' || a.warmupDay >= 7
+  ).length;
+
+  const maxOutlier =
+    researchedPosts.length > 0
+      ? Math.max(...researchedPosts.map((p) => p.outlierScore || 0))
+      : 0;
+  const outlierTrend = maxOutlier > 0 ? `${maxOutlier.toFixed(1)}x max outlier` : 'Radar active';
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <SectionErrorBoundary sectionName="Operations Command Center">
+      <div className="space-y-6 max-w-7xl mx-auto">
       {/* Top Banner & Operational Status */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -117,8 +130,9 @@ export default function DashboardOverview() {
           title="Managed Farm Pool"
           value={`${activeAccounts} / ${totalAccounts}`}
           subtitle={`${Math.round((activeAccounts / Math.max(1, totalAccounts)) * 100)}% healthy active accounts`}
-          trend="+2 warmed"
+          trend={warmedAccounts > 0 ? `+${warmedAccounts} ready` : 'Warming'}
           trendPositive={true}
+          provenance="live"
           icon={<Users className="w-4 h-4 text-cyan-400" />}
         />
         <StatCard
@@ -127,14 +141,16 @@ export default function DashboardOverview() {
           subtitle={`${pendingCampaigns.length} awaiting manual operator approval`}
           trend="Governed"
           trendPositive={true}
+          provenance="live"
           icon={<Flame className="w-4 h-4 text-amber-400" />}
         />
         <StatCard
           title="Archived Intelligence"
           value={researchedPosts.length}
           subtitle="Outlier videos mined with transcripts"
-          trend="5.4x max outlier"
+          trend={outlierTrend}
           trendPositive={true}
+          provenance="live"
           icon={<Search className="w-4 h-4 text-emerald-400" />}
         />
         <StatCard
@@ -143,6 +159,7 @@ export default function DashboardOverview() {
           subtitle="All proxy sticky binds & daily caps enforced"
           trend="Safe"
           trendPositive={true}
+          provenance="live"
           icon={<Shield className="w-4 h-4 text-purple-400" />}
         />
       </div>
@@ -163,102 +180,111 @@ export default function DashboardOverview() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 uppercase font-mono text-[11px]">
-                    <th className="pb-3 font-medium">Type</th>
-                    <th className="pb-3 font-medium">Target / Hook</th>
-                    <th className="pb-3 font-medium">Progress</th>
-                    <th className="pb-3 font-medium">Status</th>
-                    <th className="pb-3 font-medium text-right">Approval Gate</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                  {/* Campaign items */}
-                  {campaigns.map((camp) => (
-                    <tr key={camp.id} className="hover:bg-slate-800/20 transition-colors">
-                      <td className="py-3 font-mono text-cyan-400">
-                        <span className="flex items-center gap-1">
-                          <Flame className="w-3 h-3 text-amber-400" />
-                          <span>{camp.actionType}</span>
-                        </span>
-                      </td>
-                      <td className="py-3 font-medium text-white max-w-[200px] truncate">
-                        {camp.title}
-                      </td>
-                      <td className="py-3 font-mono text-slate-300">
-                        {camp.executedCount} / {camp.targetCount}
-                      </td>
-                      <td className="py-3">
-                        <StatusBadge status={camp.status} />
-                      </td>
-                      <td className="py-3 text-right">
-                        {camp.status === 'PENDING_APPROVAL' ? (
+              {campaigns.length === 0 && pendingPublish.length === 0 ? (
+                <div className="p-8">
+                  <EmptyState
+                    title="No Actions Pending Sign-Off"
+                    description="All campaign actions and scheduled uploads have been signed off or completed. Operations are idle and healthy."
+                  />
+                </div>
+              ) : (
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 uppercase font-mono text-[11px]">
+                      <th className="pb-3 font-medium">Type</th>
+                      <th className="pb-3 font-medium">Target / Hook</th>
+                      <th className="pb-3 font-medium">Progress</th>
+                      <th className="pb-3 font-medium">Status</th>
+                      <th className="pb-3 font-medium text-right">Approval Gate</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                    {/* Campaign items */}
+                    {campaigns.map((camp) => (
+                      <tr key={camp.id} className="hover:bg-slate-800/20 transition-colors">
+                        <td className="py-3 font-mono text-cyan-400">
+                          <span className="flex items-center gap-1">
+                            <Flame className="w-3 h-3 text-amber-400" />
+                            <span>{camp.actionType}</span>
+                          </span>
+                        </td>
+                        <td className="py-3 font-medium text-white max-w-[200px] truncate">
+                          {camp.title}
+                        </td>
+                        <td className="py-3 font-mono text-slate-300">
+                          {camp.executedCount} / {camp.targetCount}
+                        </td>
+                        <td className="py-3">
+                          <StatusBadge status={camp.status} />
+                        </td>
+                        <td className="py-3 text-right">
+                          {camp.status === 'PENDING_APPROVAL' ? (
+                            <div className="inline-flex gap-1.5">
+                              <button
+                                onClick={() => approveCampaign(camp.id)}
+                                className="px-2 py-1 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/60 text-[10px] font-semibold transition-all flex items-center gap-1"
+                                title="Approve campaign for automated dispatch"
+                              >
+                                <Check className="w-3 h-3" />
+                                <span>Approve</span>
+                              </button>
+                              <button
+                                onClick={() => rejectCampaign(camp.id)}
+                                className="px-2 py-1 rounded bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/60 text-[10px] font-semibold transition-all flex items-center gap-1"
+                                title="Reject campaign"
+                              >
+                                <X className="w-3 h-3" />
+                                <span>Reject</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] font-mono text-emerald-400">AUTHORIZED</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+
+                    {/* Publishing pending jobs */}
+                    {pendingPublish.map((pub) => (
+                      <tr key={pub.id} className="hover:bg-slate-800/20 transition-colors bg-indigo-950/10">
+                        <td className="py-3 font-mono text-indigo-400">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-indigo-400" />
+                            <span>POST</span>
+                          </span>
+                        </td>
+                        <td className="py-3 font-medium text-white max-w-[200px] truncate">
+                          {pub.title}
+                        </td>
+                        <td className="py-3 font-mono text-slate-300">
+                          {pub.account}
+                        </td>
+                        <td className="py-3">
+                          <StatusBadge status={pub.status} />
+                        </td>
+                        <td className="py-3 text-right">
                           <div className="inline-flex gap-1.5">
                             <button
-                              onClick={() => approveCampaign(camp.id)}
+                              onClick={() => approvePublishJob(pub.id)}
                               className="px-2 py-1 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/60 text-[10px] font-semibold transition-all flex items-center gap-1"
-                              title="Approve campaign for automated dispatch"
                             >
                               <Check className="w-3 h-3" />
                               <span>Approve</span>
                             </button>
                             <button
-                              onClick={() => rejectCampaign(camp.id)}
+                              onClick={() => rejectPublishJob(pub.id)}
                               className="px-2 py-1 rounded bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/60 text-[10px] font-semibold transition-all flex items-center gap-1"
-                              title="Reject campaign"
                             >
                               <X className="w-3 h-3" />
                               <span>Reject</span>
                             </button>
                           </div>
-                        ) : (
-                          <span className="text-[11px] font-mono text-emerald-400">AUTHORIZED</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-
-                  {/* Publishing pending jobs */}
-                  {pendingPublish.map((pub) => (
-                    <tr key={pub.id} className="hover:bg-slate-800/20 transition-colors bg-indigo-950/10">
-                      <td className="py-3 font-mono text-indigo-400">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3 text-indigo-400" />
-                          <span>POST</span>
-                        </span>
-                      </td>
-                      <td className="py-3 font-medium text-white max-w-[200px] truncate">
-                        {pub.title}
-                      </td>
-                      <td className="py-3 font-mono text-slate-300">
-                        {pub.account}
-                      </td>
-                      <td className="py-3">
-                        <StatusBadge status={pub.status} />
-                      </td>
-                      <td className="py-3 text-right">
-                        <div className="inline-flex gap-1.5">
-                          <button
-                            onClick={() => approvePublishJob(pub.id)}
-                            className="px-2 py-1 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/60 text-[10px] font-semibold transition-all flex items-center gap-1"
-                          >
-                            <Check className="w-3 h-3" />
-                            <span>Approve</span>
-                          </button>
-                          <button
-                            onClick={() => rejectPublishJob(pub.id)}
-                            className="px-2 py-1 rounded bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/60 text-[10px] font-semibold transition-all flex items-center gap-1"
-                          >
-                            <X className="w-3 h-3" />
-                            <span>Reject</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
 
@@ -356,5 +382,6 @@ export default function DashboardOverview() {
         </div>
       </div>
     </div>
+  </SectionErrorBoundary>
   );
 }

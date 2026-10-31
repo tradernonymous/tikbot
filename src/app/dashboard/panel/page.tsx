@@ -23,6 +23,9 @@ import {
   Trash2,
 } from 'lucide-react';
 import { StatusBadge } from '@/components/StatusBadge';
+import { EmptyState } from '@/components/EmptyState';
+import { AccessibleModal } from '@/components/AccessibleModal';
+import { SectionErrorBoundary } from '@/components/SectionErrorBoundary';
 import { useSearchParams } from 'next/navigation';
 
 interface FarmService {
@@ -239,7 +242,8 @@ export default function FarmServicesPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <SectionErrorBoundary sectionName="Farm Services Panel">
+      <div className="space-y-6 max-w-7xl mx-auto">
       {/* Top Banner & Mode */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -409,128 +413,126 @@ export default function FarmServicesPage() {
           <span className="text-xs text-slate-400 font-mono">{farmTasks.length} TASKS MONITORED</span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 uppercase font-mono text-[11px]">
-                <th className="py-3 px-4 font-medium">Service & Engine</th>
-                <th className="py-3 px-4 font-medium">Target URL</th>
-                <th className="py-3 px-4 font-medium">Cost / Run</th>
-                <th className="py-3 px-4 font-medium">Progress</th>
-                <th className="py-3 px-4 font-medium">Nodes</th>
-                <th className="py-3 px-4 font-medium">Status</th>
-                <th className="py-3 px-4 font-medium text-right">Controls</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60 text-slate-300">
-              {farmTasks.map((task) => (
-                <tr key={task.id} className="hover:bg-slate-800/20 transition-colors">
-                  <td className="py-3 px-4 font-medium text-white max-w-[220px]">
-                    <div className="truncate font-semibold">{task.serviceName}</div>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span
-                        className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${
-                          task.executionMode === 'SMM_PROVIDER'
-                            ? 'bg-cyan-950/80 text-cyan-300 border border-cyan-800/50'
-                            : 'bg-purple-950/80 text-purple-300 border border-purple-800/50'
-                        }`}
-                      >
-                        {task.executionMode === 'SMM_PROVIDER' ? 'SMM API' : 'FARM NODES'}
-                      </span>
-                      {task.externalOrderId && (
-                        <span className="text-[10px] text-slate-400 font-mono">#{task.externalOrderId}</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 font-mono text-[11px] text-cyan-400/90 max-w-[220px] truncate">
-                    <a href={task.targetUrl} target="_blank" rel="noopener noreferrer" className="hover:underline flex items-center gap-1">
-                      <span className="truncate">{task.targetUrl}</span>
-                      <ExternalLink className="w-3 h-3 shrink-0" />
-                    </a>
-                  </td>
-                  <td className="py-3 px-4 font-mono text-xs">
-                    <span className="font-bold text-emerald-400">
-                      {task.costFormatted || (task.executionMode === 'SMM_PROVIDER' ? 'RM 0.00' : 'FREE')}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 font-mono text-xs">
-                    <div className="flex items-center gap-2">
-                      <span>{task.executed} / {task.target}</span>
-                      <div className="w-16 h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                        <div
-                          className="h-full bg-cyan-500 rounded-full transition-all duration-500"
-                          style={{ width: `${Math.min(100, (task.executed / task.target) * 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                    {task.providerStatus && (
-                      <div className="text-[10px] text-slate-400 mt-0.5">
-                        Provider: <span className="text-cyan-300">{task.providerStatus}</span>
-                      </div>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 font-mono text-xs text-slate-400">
-                    {task.assignedNodes} nodes
-                  </td>
-                  <td className="py-3 px-4">
-                    <StatusBadge status={task.status} />
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <div className="inline-flex gap-1.5">
-                      {task.status === 'RUNNING' ? (
-                        <button
-                          onClick={() => pauseTask(task.id)}
-                          className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-[10px] font-mono flex items-center gap-1"
-                        >
-                          <Pause className="w-3 h-3" />
-                          <span>Pause</span>
-                        </button>
-                      ) : task.status === 'PAUSED' ? (
-                        <button
-                          onClick={() => resumeTask(task.id)}
-                          className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-emerald-400 text-[10px] font-mono flex items-center gap-1"
-                        >
-                          <Play className="w-3 h-3" />
-                          <span>Resume</span>
-                        </button>
-                      ) : null}
-                      <button
-                        onClick={() => cancelTask(task.id)}
-                        className="p-1 rounded bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 text-[10px] transition-colors"
-                        title="Cancel task"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </td>
+        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+          {farmTasks.length === 0 ? (
+            <div className="p-8">
+              <EmptyState
+                title="No Active Automation Tasks"
+                description="No farm automation tasks are currently running. Select a service launcher above to dispatch an automation."
+              />
+            </div>
+          ) : (
+            <table className="w-full text-left text-xs">
+              <thead className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800">
+                <tr className="bg-slate-950/80 text-slate-400 uppercase font-mono text-[11px]">
+                  <th className="py-3 px-4 font-medium">Service & Engine</th>
+                  <th className="py-3 px-4 font-medium">Target URL</th>
+                  <th className="py-3 px-4 font-medium">Cost / Run</th>
+                  <th className="py-3 px-4 font-medium">Progress</th>
+                  <th className="py-3 px-4 font-medium">Nodes</th>
+                  <th className="py-3 px-4 font-medium">Status</th>
+                  <th className="py-3 px-4 font-medium text-right">Controls</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                {farmTasks.map((task) => (
+                  <tr key={task.id} className="hover:bg-slate-800/20 transition-colors">
+                    <td className="py-3 px-4 font-medium text-white max-w-[220px]">
+                      <div className="truncate font-semibold">{task.serviceName}</div>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span
+                          className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${
+                            task.executionMode === 'SMM_PROVIDER'
+                              ? 'bg-cyan-950/80 text-cyan-300 border border-cyan-800/50'
+                              : 'bg-purple-950/80 text-purple-300 border border-purple-800/50'
+                          }`}
+                        >
+                          {task.executionMode === 'SMM_PROVIDER' ? 'SMM API' : 'FARM NODES'}
+                        </span>
+                        {task.externalOrderId && (
+                          <span className="text-[10px] text-slate-400 font-mono">#{task.externalOrderId}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 font-mono text-[11px] text-cyan-400/90 max-w-[220px] truncate">
+                      <a href={task.targetUrl} target="_blank" rel="noopener noreferrer" className="hover:underline flex items-center gap-1">
+                        <span className="truncate">{task.targetUrl}</span>
+                        <ExternalLink className="w-3 h-3 shrink-0" />
+                      </a>
+                    </td>
+                    <td className="py-3 px-4 font-mono text-xs">
+                      <span className="font-bold text-emerald-400">
+                        {task.costFormatted || (task.executionMode === 'SMM_PROVIDER' ? 'RM 0.00' : 'FREE')}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 font-mono text-xs">
+                      <div className="flex items-center gap-2">
+                        <span>{task.executed} / {task.target}</span>
+                        <div className="w-16 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                          <div
+                            className="h-full bg-cyan-500 rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min(100, (task.executed / task.target) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                      {task.providerStatus && (
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          Provider: <span className="text-cyan-300">{task.providerStatus}</span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 font-mono text-xs text-slate-400">
+                      {task.assignedNodes} nodes
+                    </td>
+                    <td className="py-3 px-4">
+                      <StatusBadge status={task.status} />
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="inline-flex gap-1.5">
+                        {task.status === 'RUNNING' ? (
+                          <button
+                            onClick={() => pauseTask(task.id)}
+                            className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 text-[10px] font-mono flex items-center gap-1"
+                          >
+                            <Pause className="w-3 h-3" />
+                            <span>Pause</span>
+                          </button>
+                        ) : task.status === 'PAUSED' ? (
+                          <button
+                            onClick={() => resumeTask(task.id)}
+                            className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-emerald-400 text-[10px] font-mono flex items-center gap-1"
+                          >
+                            <Play className="w-3 h-3" />
+                            <span>Resume</span>
+                          </button>
+                        ) : null}
+                        <button
+                          onClick={() => cancelTask(task.id)}
+                          className="p-1 rounded bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 text-[10px] transition-colors"
+                          title="Cancel task"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
       {/* Quick Launch Modal */}
-      {selectedService && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-cyan-950/80 border border-cyan-800/40 text-cyan-400">
-                  <selectedService.icon className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white">Dispatch {selectedService.name}</h3>
-                  <p className="text-[11px] text-slate-400">Target TikTok video or live URL</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedService(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <AccessibleModal
+        isOpen={!!selectedService}
+        onClose={() => setSelectedService(null)}
+        title={selectedService ? `Dispatch ${selectedService.name}` : ''}
+        maxWidth="max-w-lg"
+      >
+        {selectedService && (
+          <div>
+            <p className="text-[11px] text-slate-400 -mt-2 mb-4">Target TikTok video or live URL</p>
 
             <form onSubmit={handleDispatchSubmit} className="space-y-4 text-xs">
               {/* Execution Engine Selector */}
@@ -762,8 +764,9 @@ export default function FarmServicesPage() {
               </div>
             </form>
           </div>
-        </div>
-      )}
+        )}
+      </AccessibleModal>
     </div>
+  </SectionErrorBoundary>
   );
 }

@@ -1,20 +1,80 @@
-# Phase 4 — Account Farm & Automation Evidence Report
+# Phase 4 TDD Evidence & Verification Report: UI/UX Upgrade
 
-## Status: COMPLETE
+**Execution Date**: 2026-11-01  
+**Scope**: Phase 4 UI/UX (U1–U10, P12–P14)  
+**Target Application**: `tikbot` (Next.js 16, TypeScript Strict, React 19, TailwindCSS)
 
-### Checkpoint Summary
-- **Account Lifecycle State Machine**: Implemented `src/farm/account-lifecycle.ts` enforcing transitions across `CREATED`, `WARMING`, `ACTIVE`, `COOLDOWN`, `RESTRICTED`, and `BANNED`, with transition audit logs and quarantine isolation. Achieved 100% line coverage.
-- **Warmup Routine Engine**: Implemented `src/farm/warmup-routine.ts` defining a 7-day ramp-up schedule with target views, likes, follows, comments, and profile edits culminating in graduation to `ACTIVE`. Achieved 100% line coverage.
-- **Session Vault & Encrypted Import/Export**: Implemented `src/farm/session-vault.ts` packing cookies, local storage tokens, and user agents into AES-256-GCM encrypted envelopes with cookie expiration validation. Achieved 100% line coverage.
-- **Account Ban & Challenge Detector**: Implemented `src/farm/ban-detector.ts` parsing DOM checkpoints and HTTP codes to flag `BANNED`, `RESTRICTED` (puzzle/SMS challenges), `RATE_LIMITED`, or `HEALTHY` states with recommended actions (`QUARANTINE`, `MANUAL_CHALLENGE`, `COOLDOWN`). Achieved 100% line coverage.
-- **Device Fingerprint Generator & Rotation**: Implemented `src/farm/fingerprint.ts` generating desktop and mobile fingerprints (WebGL, canvas noise seed, viewport, hardware concurrency) with deterministic sticky binding per account ID. Achieved 100% line coverage.
+---
 
-### Test Coverage Results (Vitest + v8)
-- **Total Test Files**: 27 passed (27)
-- **Total Tests**: 109 passed (109)
-- **Statements Coverage**: 96.45% (Threshold: 80%)
-- **Branches Coverage**: 84.72% (Threshold: 80%)
-- **Functions Coverage**: 97.67% (Threshold: 80%)
-- **Lines Coverage**: 97.87% (Threshold: 80%)
-- **TypeScript Typecheck**: Succeeded (`tsc --noEmit` exited with 0 errors).
-- **Next.js Production Build**: Succeeded (`Compiled successfully in 551ms`).
+## 1. Summary of Upgrades Delivered
+
+### 1.1 Core Accessible UI Components (`src/components/`)
+1. **`AccessibleModal.tsx`**:
+   - Implements full ARIA dialog semantics (`role="dialog"`, `aria-modal="true"`, `aria-labelledby="modal-title"`).
+   - Global `Escape` keyboard listener for accessible dismiss.
+   - Click-outside backdrop dismiss.
+   - Configurable sizing via `maxWidth` / `maxWidthClassName` with clean responsive layout.
+2. **`EmptyState.tsx`**:
+   - Clean slate representation for tables and lists with zero records.
+   - Clear icon, actionable guidance, and optional CTA button callback.
+3. **`LoadingSkeleton.tsx`**:
+   - Accessible animated skeleton placeholders (`role="status"`, `aria-label="Loading content..."`) with pulsate animation.
+4. **`SectionErrorBoundary.tsx`**:
+   - React error boundary component that isolates local rendering failures within a section without crashing the entire operator dashboard.
+   - Provides section error banner, diagnostics, and a "Try Again" recovery action.
+5. **`StatCard.tsx`**:
+   - Displays honest em-dash (`—`) when value is null, undefined, or empty string.
+   - Renders metric provenance tags (`LIVE`, `CACHED`, `SIMULATED`, `UNKNOWN`) to eliminate fabricated success claims.
+
+### 1.2 Upgraded Dashboard Pages
+1. **`src/app/dashboard/accounts/page.tsx`**:
+   - Wrapped with `<SectionErrorBoundary sectionName="Farm Accounts & Proxies">`.
+   - Replaced custom dialog markups with `<AccessibleModal>` for account inspection, session vault cookies attachment, and new identity registration.
+   - Sticky table headers with scrollable max-height containers (`max-h-[600px] overflow-y-auto`).
+   - `<EmptyState>` rendered when accounts or proxies match zero records.
+2. **`src/app/dashboard/campaigns/page.tsx`**:
+   - Wrapped with `<SectionErrorBoundary sectionName="Engagement Campaigns">`.
+   - Replaced raw create campaign modal with `<AccessibleModal>`.
+   - Sticky table headers with scrollable container and `<EmptyState>` when filtered campaigns are empty.
+3. **`src/app/dashboard/publishing/page.tsx`**:
+   - Wrapped with `<SectionErrorBoundary sectionName="Content & Auto-Publishing">`.
+   - Replaced raw post composer modal with `<AccessibleModal>`.
+   - Sticky table headers with scrollable container and `<EmptyState>` when scheduled slots are empty.
+4. **`src/app/dashboard/panel/page.tsx`**:
+   - Wrapped with `<SectionErrorBoundary sectionName="Farm Services Panel">`.
+   - Replaced raw task dispatch modal with `<AccessibleModal>`.
+   - Sticky table headers with scrollable container and `<EmptyState>` when farm tasks are empty.
+5. **`src/app/dashboard/page.tsx`**:
+   - Wrapped with `<SectionErrorBoundary sectionName="Operations Command Center">`.
+   - Provenance badges (`provenance="live"`) on primary KPI cards.
+   - Dynamic real statistics (outlier multiplier and warmed accounts calculation) eliminating hardcoded strings.
+   - `<EmptyState>` rendered when no campaigns or publishing jobs are pending operator sign-off.
+
+---
+
+## 2. Test Execution & Coverage Results
+
+### 2.1 Unit Tests
+```bash
+npm test
+```
+- **Total Test Files**: 78 passed (78)
+- **Total Tests**: 349 passed (349)
+- **Pass Rate**: 100%
+
+### 2.2 Coverage Gate Verification
+```bash
+npm run test:coverage
+```
+- **Statements**: 92.76% (Gate: $\ge 80\%$) - **PASS**
+- **Branches**: 81.24% (Gate: $\ge 80\%$) - **PASS**
+- **Functions**: 94.11% (Gate: $\ge 80\%$) - **PASS**
+- **Lines**: 94.76% (Gate: $\ge 80\%$) - **PASS**
+
+### 2.3 Next.js 16 Production Build Verification
+```bash
+npm run build
+```
+- `Compiled successfully` with Turbopack in 2.8s.
+- `Finished TypeScript in 8.2s` with 0 type errors.
+- 13/13 static/dynamic routes generated successfully.

@@ -2,6 +2,9 @@
 
 import React, { useState } from 'react';
 import { StatusBadge } from '@/components/StatusBadge';
+import { EmptyState } from '@/components/EmptyState';
+import { AccessibleModal } from '@/components/AccessibleModal';
+import { SectionErrorBoundary } from '@/components/SectionErrorBoundary';
 import { useOperations, FarmAccount, StickyProxy } from '@/context/OperationsContext';
 import { generateDeviceFingerprint } from '@/farm/fingerprint';
 import { AccountState } from '@/farm/account-lifecycle';
@@ -112,7 +115,8 @@ export default function AccountsPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <SectionErrorBoundary sectionName="Farm Accounts & Proxies">
+      <div className="space-y-6 max-w-7xl mx-auto">
       {/* Top Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -194,22 +198,32 @@ export default function AccountsPage() {
             </span>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 uppercase font-mono text-[11px]">
-                  <th className="py-3 px-4 font-medium">Handle / Username</th>
-                  <th className="py-3 px-4 font-medium">Platform</th>
-                  <th className="py-3 px-4 font-medium">Status</th>
-                  <th className="py-3 px-4 font-medium">Warmup</th>
-                  <th className="py-3 px-4 font-medium">Health</th>
-                  <th className="py-3 px-4 font-medium">Sticky Proxy</th>
-                  <th className="py-3 px-4 font-medium">Velocity Today</th>
-                  <th className="py-3 px-4 font-medium text-right">Quick Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                {filteredAccounts.map((acc) => {
+          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+            {filteredAccounts.length === 0 ? (
+              <div className="p-8">
+                <EmptyState
+                  title="No Accounts Match Filter"
+                  description="No account nodes match the selected filter. Try changing status or register a new identity node."
+                  actionText="Register Node"
+                  onAction={() => setShowAddModal(true)}
+                />
+              </div>
+            ) : (
+              <table className="w-full text-left text-xs">
+                <thead className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800">
+                  <tr className="bg-slate-950/80 text-slate-400 uppercase font-mono text-[11px]">
+                    <th className="py-3 px-4 font-medium">Handle / Username</th>
+                    <th className="py-3 px-4 font-medium">Platform</th>
+                    <th className="py-3 px-4 font-medium">Status</th>
+                    <th className="py-3 px-4 font-medium">Warmup</th>
+                    <th className="py-3 px-4 font-medium">Health</th>
+                    <th className="py-3 px-4 font-medium">Sticky Proxy</th>
+                    <th className="py-3 px-4 font-medium">Velocity Today</th>
+                    <th className="py-3 px-4 font-medium text-right">Quick Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                  {filteredAccounts.map((acc) => {
                   const proxy = proxies.find((p) => p.id === acc.proxyId);
                   return (
                     <tr key={acc.id} className="hover:bg-slate-800/20 transition-colors">
@@ -325,6 +339,7 @@ export default function AccountsPage() {
                 })}
               </tbody>
             </table>
+            )}
           </div>
         </div>
       )}
@@ -337,91 +352,89 @@ export default function AccountsPage() {
             <span className="text-xs text-slate-400 font-mono">1:1 IDENTITY BINDING ENFORCED</span>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 uppercase font-mono text-[11px]">
-                  <th className="py-3 px-4 font-medium">Gateway Host</th>
-                  <th className="py-3 px-4 font-medium">Protocol</th>
-                  <th className="py-3 px-4 font-medium">Country / Geo</th>
-                  <th className="py-3 px-4 font-medium">Status</th>
-                  <th className="py-3 px-4 font-medium">Latency</th>
-                  <th className="py-3 px-4 font-medium">Assigned Accounts</th>
-                  <th className="py-3 px-4 font-medium text-right">Ping Probe</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                {proxies.map((proxy) => {
-                  const assignedCount = accounts.filter((a) => a.proxyId === proxy.id).length;
-                  return (
-                    <tr key={proxy.id} className="hover:bg-slate-800/20 transition-colors">
-                      <td className="py-3 px-4 font-mono font-medium text-white">
-                        {proxy.host}:{proxy.port}
-                      </td>
-                      <td className="py-3 px-4 font-mono text-cyan-400">{proxy.protocol}</td>
-                      <td className="py-3 px-4 font-mono text-slate-300">
-                        <span className="px-1.5 py-0.5 rounded bg-slate-800 font-bold mr-1.5 text-white">
-                          {proxy.country}
-                        </span>
-                        {proxy.country === 'US' ? 'United States' : proxy.country === 'GB' ? 'United Kingdom' : 'Germany'}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold ${
-                            proxy.status === 'HEALTHY'
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                              : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
-                          }`}
-                        >
-                          {proxy.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 font-mono text-xs text-slate-300">
-                        {proxy.latencyMs} ms
-                      </td>
-                      <td className="py-3 px-4 font-mono text-xs text-cyan-400">
-                        {assignedCount} identities
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <button
-                          onClick={() => testProxyLatency(proxy.id)}
-                          className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 text-[11px] font-mono transition-colors"
-                        >
-                          Ping &rarr;
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+            {proxies.length === 0 ? (
+              <div className="p-8">
+                <EmptyState
+                  title="No Proxies Configured"
+                  description="No residential sticky proxy gateways are currently registered in the pool."
+                />
+              </div>
+            ) : (
+              <table className="w-full text-left text-xs">
+                <thead className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800">
+                  <tr className="bg-slate-950/80 text-slate-400 uppercase font-mono text-[11px]">
+                    <th className="py-3 px-4 font-medium">Gateway Host</th>
+                    <th className="py-3 px-4 font-medium">Protocol</th>
+                    <th className="py-3 px-4 font-medium">Country / Geo</th>
+                    <th className="py-3 px-4 font-medium">Status</th>
+                    <th className="py-3 px-4 font-medium">Latency</th>
+                    <th className="py-3 px-4 font-medium">Assigned Accounts</th>
+                    <th className="py-3 px-4 font-medium text-right">Ping Probe</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                  {proxies.map((proxy) => {
+                    const assignedCount = accounts.filter((a) => a.proxyId === proxy.id).length;
+                    return (
+                      <tr key={proxy.id} className="hover:bg-slate-800/20 transition-colors">
+                        <td className="py-3 px-4 font-mono font-medium text-white">
+                          {proxy.host}:{proxy.port}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-cyan-400">{proxy.protocol}</td>
+                        <td className="py-3 px-4 font-mono text-slate-300">
+                          <span className="px-1.5 py-0.5 rounded bg-slate-800 font-bold mr-1.5 text-white">
+                            {proxy.country}
+                          </span>
+                          {proxy.country === 'US' ? 'United States' : proxy.country === 'GB' ? 'United Kingdom' : 'Germany'}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold ${
+                              proxy.status === 'HEALTHY'
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                                : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                            }`}
+                          >
+                            {proxy.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-xs text-slate-300">
+                          {proxy.latencyMs} ms
+                        </td>
+                        <td className="py-3 px-4 font-mono text-xs text-cyan-400">
+                          {assignedCount} identities
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            onClick={() => testProxyLatency(proxy.id)}
+                            className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 text-[11px] font-mono transition-colors"
+                          >
+                            Ping &rarr;
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       )}
 
       {/* Comprehensive Hardware & Fingerprint Spec Modal */}
-      {inspectedAccount && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-cyan-950/80 border border-cyan-800/40 text-cyan-400">
-                  <Cpu className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white">Identity Spec & 7-Day Warmup</h3>
-                  <p className="text-[11px] text-slate-400 font-mono">
-                    @{inspectedAccount.username} • {inspectedAccount.id}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setInspectedAccount(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <AccessibleModal
+        isOpen={!!inspectedAccount}
+        onClose={() => setInspectedAccount(null)}
+        title="Identity Spec & 7-Day Warmup"
+        maxWidth="max-w-xl"
+      >
+        {inspectedAccount && (
+          <div className="space-y-4">
+            <p className="text-[11px] text-slate-400 font-mono -mt-2">
+              @{inspectedAccount.username} • {inspectedAccount.id}
+            </p>
 
             <div className="space-y-3 text-xs">
               {/* 7-Day Warmup Progress Card */}
@@ -551,29 +564,21 @@ export default function AccountsPage() {
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </AccessibleModal>
 
       {/* Attach / Edit Session Modal */}
-      {sessionModalAccount && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <Key className="w-4 h-4 text-amber-400" />
-                <div>
-                  <h3 className="text-sm font-bold text-white">Attach Session Cookies to @{sessionModalAccount.username}</h3>
-                  <p className="text-[11px] text-slate-400">Enables authenticated actions and bypassing age-gated posts</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setSessionModalAccount(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
+      <AccessibleModal
+        isOpen={!!sessionModalAccount}
+        onClose={() => setSessionModalAccount(null)}
+        title={`Attach Session Cookies to @${sessionModalAccount?.username || ''}`}
+        maxWidth="max-w-lg"
+      >
+        {sessionModalAccount && (
+          <div>
+            <p className="text-[11px] text-slate-400 -mt-2 mb-4">
+              Enables authenticated actions and bypassing age-gated posts
+            </p>
             <form onSubmit={handleSaveCookiesModal} className="space-y-4 text-xs">
               <div>
                 <label className="text-slate-300 font-medium block mb-1">
@@ -609,97 +614,86 @@ export default function AccountsPage() {
               </div>
             </form>
           </div>
-        </div>
-      )}
+        )}
+      </AccessibleModal>
 
       {/* Add Account Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-cyan-400" />
-                <h3 className="text-sm font-bold text-white">Add Farm Account</h3>
-              </div>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddAccountSubmit} className="space-y-4 text-xs">
-              <div>
-                <label className="text-slate-300 font-medium block mb-1">Account Handle / Username</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="@username"
-                  value={newUsername}
-                  onChange={(e) => setNewUsername(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-slate-300 font-medium block mb-1">Platform</label>
-                <select
-                  value={newPlatform}
-                  onChange={(e) => setNewPlatform(e.target.value as any)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-cyan-500"
-                >
-                  <option value="TIKTOK">TikTok Global</option>
-                  <option value="DOUYIN">Douyin (China)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-slate-300 font-medium block mb-1">Session Cookies JSON (Optional)</label>
-                <textarea
-                  rows={3}
-                  placeholder={`[{"name":"sessionid","value":"..."},...] (Leave empty for unauthenticated identity)`}
-                  value={newCookiesJson}
-                  onChange={(e) => setNewCookiesJson(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-cyan-500"
-                />
-              </div>
-
-              <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-[11px] font-mono text-slate-400 space-y-1">
-                <div className="flex justify-between">
-                  <span>Initial Status:</span>
-                  <span className="text-amber-400">CREATED (Needs Warmup)</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Proxy Assignment:</span>
-                  <span className="text-cyan-400">Auto-Bind Sticky Residential</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Session Encryption:</span>
-                  <span className="text-emerald-400">AES-256-GCM Vault</span>
-                </div>
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-sm transition-all"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Register Identity</span>
-                </button>
-              </div>
-            </form>
+      <AccessibleModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        title="Add Farm Account"
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleAddAccountSubmit} className="space-y-4 text-xs">
+          <div>
+            <label className="text-slate-300 font-medium block mb-1">Account Handle / Username</label>
+            <input
+              type="text"
+              required
+              placeholder="@username"
+              value={newUsername}
+              onChange={(e) => setNewUsername(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
+            />
           </div>
-        </div>
-      )}
+
+          <div>
+            <label className="text-slate-300 font-medium block mb-1">Platform</label>
+            <select
+              value={newPlatform}
+              onChange={(e) => setNewPlatform(e.target.value as any)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-cyan-500"
+            >
+              <option value="TIKTOK">TikTok Global</option>
+              <option value="DOUYIN">Douyin (China)</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-slate-300 font-medium block mb-1">Session Cookies JSON (Optional)</label>
+            <textarea
+              rows={3}
+              placeholder={`[{"name":"sessionid","value":"..."},...] (Leave empty for unauthenticated identity)`}
+              value={newCookiesJson}
+              onChange={(e) => setNewCookiesJson(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-cyan-500"
+            />
+          </div>
+
+          <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-[11px] font-mono text-slate-400 space-y-1">
+            <div className="flex justify-between">
+              <span>Initial Status:</span>
+              <span className="text-amber-400">CREATED (Needs Warmup)</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Proxy Assignment:</span>
+              <span className="text-cyan-400">Auto-Bind Sticky Residential</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Session Encryption:</span>
+              <span className="text-emerald-400">AES-256-GCM Vault</span>
+            </div>
+          </div>
+
+          <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-800">
+            <button
+              type="button"
+              onClick={() => setShowAddModal(false)}
+              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-sm transition-all"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Register Identity</span>
+            </button>
+          </div>
+        </form>
+      </AccessibleModal>
     </div>
+  </SectionErrorBoundary>
   );
 }
