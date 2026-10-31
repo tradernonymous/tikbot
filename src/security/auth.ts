@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { NextResponse, type NextRequest } from 'next/server';
 
 export interface OperatorSession {
   userId: string;
@@ -122,4 +123,73 @@ export function verifySessionToken(token: string, secret: string): OperatorSessi
   } catch {
     return null;
   }
+}
+
+export interface RequireSessionResult {
+  session: OperatorSession;
+  refreshedToken?: string;
+}
+
+/**
+ * Shared authentication & authorization guard for API route handlers (S4, S10, S11).
+ * Validates session token signature and expiration, executes CSRF check on mutations,
+ * and issues sliding refresh token when remaining validity is under 2 hours.
+ */
+export function requireSession(
+  request: NextRequest,
+  explicitSecret?: string
+): RequireSessionResult | NextResponse {
+  // CSRF / Origin check on mutating requests (S10)
+  const method = request.method.toUpperCase();
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const origin = request.headers.get('origin');
+    if (origin) {
+      try {
+        const reqOrigin = new URL(request.url).origin;
+        if (origin !== reqOrigin) {
+          return NextResponse.json(
+            { error: 'CSRF validation failed: Origin mismatch' },
+            { status: 403 }
+          );
+        }
+      } catch {
+        return NextResponse.json(
+          { error: 'CSRF validation failed: Invalid request URL' },
+          { status: 403 }
+        );
+      }
+    }
+  }
+
+  // Extract session token from cookie or Authorization header
+  const token =
+    request.cookies.get('__Host-tikbot_session')?.value ||
+    request.cookies.get('tikbot_session')?.value ||
+    request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+
+  if (!token) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+
+  const secret = explicitSecret || process.env.SESSION_SECRET || 'ephemeral-session-secret-for-login-min-32-chars';
+  const payload = verifySessionToken(token, secret);
+
+  if (!payload) {
+    return NextResponse.json({ error: 'Invalid or expired session token' }, { status: 401 });
+  }
+
+  // Sliding refresh when less than 2 hours remain (S11)
+  let refreshedToken: string | undefined;
+  if (payload.exp) {
+    const remainingSeconds = payload.exp - Math.floor(Date.now() / 1000);
+    if (remainingSeconds < 2 * 3600) {
+      refreshedToken = createSessionToken(
+        { userId: payload.userId, email: payload.email, role: payload.role },
+        secret,
+        8 * 3600 * 1000
+      );
+    }
+  }
+
+  return { session: payload, refreshedToken };
 }

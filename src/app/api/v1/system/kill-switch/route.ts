@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { globalKillSwitch } from '@/security/kill-switch';
+import { requireSession } from '@/security/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +10,11 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = requireSession(request);
+    if (auth instanceof NextResponse) {
+      return auth;
+    }
+
     const body = await request.json();
     const { active, reason, operatorId } = body;
 
@@ -19,7 +25,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const state = globalKillSwitch.setKillSwitch(active, reason, operatorId || 'admin-operator');
+    const state = globalKillSwitch.setKillSwitch(
+      active,
+      reason,
+      operatorId || auth.session.userId || 'admin-operator'
+    );
     return NextResponse.json(state, { status: 200 });
   } catch (err) {
     return NextResponse.json(
