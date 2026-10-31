@@ -1,10 +1,11 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { getDevFixtures, FixtureDataset } from '@/fixtures';
 import { WarmupEngine } from '@/farm/warmup-routine';
 import { AccountLifecycleManager, AccountState } from '@/farm/account-lifecycle';
 import { COMPLIANCE_ACTION_CAPS } from '@/farm/rate-limiter';
+import { pollAllSMMTasks, calculatePollerBackoff } from '@/panel/smm-poller';
 
 export interface FarmAccount {
   id: string;
@@ -536,36 +537,49 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
       .catch(() => {});
   }, []);
 
-  // Live SMM Status Poller: Polls real status for external provider orders
+  const farmTasksRef = useRef(farmTasks);
+  farmTasksRef.current = farmTasks;
+
+  const isPollingRef = useRef(false);
+  const consecutiveErrorsRef = useRef(0);
+
+  // Live SMM Status Poller: Ref-based lock, stable dependencies, Promise.allSettled batching, backoff & error telemetry (P10)
   useEffect(() => {
     if (killSwitchActive) return;
 
-    const smmInterval = setInterval(async () => {
-      const activeSmmTasks = farmTasks.filter(
+    let timeoutId: NodeJS.Timeout | null = null;
+    let isCancelled = false;
+
+    const pollTick = async () => {
+      if (isCancelled || isPollingRef.current) return;
+
+      const activeSmmTasks = farmTasksRef.current.filter(
         (t) => t.executionMode === 'SMM_PROVIDER' && t.status === 'RUNNING' && t.externalOrderId
       );
 
-      if (activeSmmTasks.length === 0) return;
+      if (activeSmmTasks.length === 0) {
+        consecutiveErrorsRef.current = 0;
+        timeoutId = setTimeout(pollTick, 15000);
+        return;
+      }
 
-      for (const task of activeSmmTasks) {
-        try {
-          const res = await fetch('/api/v1/smm', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'status',
-              orderId: task.externalOrderId,
-            }),
-          });
-          const data = await res.json();
-          if (data.success && data.status) {
-            const rawStatus = String(data.status.status || '').toLowerCase();
-            const remains = data.status.remains !== undefined ? Number(data.status.remains) : undefined;
-            const startCount = data.status.startCount !== undefined ? Number(data.status.startCount) : undefined;
+      isPollingRef.current = true;
+      let tickHadError = false;
+
+      try {
+        const results = await pollAllSMMTasks(
+          activeSmmTasks.map((t) => ({ id: t.id, externalOrderId: t.externalOrderId }))
+        );
+
+        for (const res of results) {
+          if (res.success && res.rawStatus) {
+            const rawStatus = res.rawStatus.toLowerCase();
+            const remains = res.remains;
+            const startCount = res.startCount;
 
             setFarmTasks((prev) =>
               prev.map((t) => {
-                if (t.id === task.id) {
+                if (t.id === res.taskId) {
                   const isCompleted = rawStatus.includes('completed') || remains === 0;
                   const isCanceled = rawStatus.includes('cancel') || rawStatus.includes('refund');
                   const nextStatus = isCompleted ? 'COMPLETED' : isCanceled ? 'PAUSED' : 'RUNNING';
@@ -583,7 +597,7 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
                     executed,
                     remains,
                     startCount,
-                    providerStatus: data.status.status,
+                    providerStatus: res.rawStatus,
                     lastPolledAt: new Date().toLocaleTimeString(),
                   };
                 }
@@ -592,24 +606,51 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
             );
 
             setTerminalLogs((prev) => [
-              `[${new Date().toLocaleTimeString()}] [SMM Poller] Order #${task.externalOrderId}: ${data.status.status}${
+              `[${new Date().toLocaleTimeString()}] [SMM Poller] Order #${res.externalOrderId}: ${res.rawStatus}${
                 remains !== undefined ? ` (Remains: ${remains})` : ''
               }`,
               ...prev.slice(0, 59),
             ]);
+          } else if (!res.success) {
+            tickHadError = true;
+            setTerminalLogs((prev) => [
+              `[${new Date().toLocaleTimeString()}] [SMM Poller Error] Order #${res.externalOrderId || res.taskId}: ${res.error || 'Failed status poll'}`,
+              ...prev.slice(0, 59),
+            ]);
           }
-        } catch {
-          // Silent catch for intermittent network hiccup
+        }
+      } catch (err) {
+        tickHadError = true;
+        setTerminalLogs((prev) => [
+          `[${new Date().toLocaleTimeString()}] [SMM Poller Error] Batch poll failure: ${err instanceof Error ? err.message : String(err)}`,
+          ...prev.slice(0, 59),
+        ]);
+      } finally {
+        isPollingRef.current = false;
+        if (tickHadError) {
+          consecutiveErrorsRef.current += 1;
+        } else {
+          consecutiveErrorsRef.current = 0;
+        }
+
+        const nextDelay = calculatePollerBackoff(consecutiveErrorsRef.current, 15000, 60000);
+        if (!isCancelled) {
+          timeoutId = setTimeout(pollTick, nextDelay);
         }
       }
-    }, 15000);
+    };
 
-    return () => clearInterval(smmInterval);
-  }, [farmTasks, killSwitchActive]);
+    timeoutId = setTimeout(pollTick, 15000);
 
-  // Background Task Ticker (Internal Farm & Campaigns simulation only)
+    return () => {
+      isCancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [killSwitchActive]);
+
+  // Background Task Ticker (Internal Farm & Campaigns simulation only - disabled in production per P7)
   useEffect(() => {
-    if (killSwitchActive) return;
+    if (killSwitchActive || process.env.NODE_ENV === 'production') return;
 
     const interval = setInterval(() => {
       // 1. Progress running INTERNAL farm tasks only (SMM tasks are handled by real poller above)

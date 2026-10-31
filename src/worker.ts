@@ -2,7 +2,7 @@ import { JobQueueEngine, InMemoryQueueStorage, QueueStorageAdapter } from './que
 import { PostgresQueueStorage } from './queue/postgres-queue-storage';
 import { globalKillSwitch, getPersistedKillSwitch } from './security/kill-switch';
 import { runStealthViewSession } from './farm/stealth-runner';
-import { publishPost } from './content/publisher';
+import { ContentPublisher } from './content/publisher';
 
 export type JobHandler = (payload: Record<string, unknown>) => Promise<unknown>;
 
@@ -17,9 +17,9 @@ export function registerDefaultJobHandlers(): void {
     const targetUrl = String(payload.url || payload.targetUrl || '');
     if (!targetUrl) throw new Error('farm.view requires url');
     const count = Number(payload.count || payload.views || 1);
-    return await runStealthViewSession(targetUrl, {
-      minViews: count,
-      maxViews: count,
+    return await runStealthViewSession({
+      url: targetUrl,
+      targetViews: count,
       settleDelayMs: 50,
       jitterPauseMs: 50,
     });
@@ -48,14 +48,12 @@ export function registerDefaultJobHandlers(): void {
     const videoUrl = String(payload.videoUrl || payload.mediaUrl || '');
     const caption = String(payload.caption || '');
     if (!videoUrl) throw new Error('publish.upload requires videoUrl');
-    return await publishPost({
-      videoUrl,
+    const publisher = new ContentPublisher();
+    return await publisher.publishVideo({
+      accountId: String(payload.accountId || 'system-creator'),
+      mediaPath: videoUrl,
       caption,
-      coverTimestampMs: 1000,
-      privacyLevel: 'PUBLIC',
-      allowComments: true,
-      allowDuet: true,
-      allowStitch: true,
+      hasValidSession: true,
     });
   });
 

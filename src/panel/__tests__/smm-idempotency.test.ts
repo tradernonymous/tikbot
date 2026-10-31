@@ -78,4 +78,14 @@ describe('SMM Order Idempotency & Deduplication (P9 TDD)', () => {
     expect(checkExpired.isDuplicate).toBe(false);
     expect(checkExpired.lockAcquired).toBe(true);
   });
+
+  it('supports clear to purge cached entries', async () => {
+    await manager.checkAndLock('key-clear');
+    await manager.recordSuccess('key-clear', { ok: true });
+    manager.clear();
+
+    const checkAfterClear = await manager.checkAndLock('key-clear');
+    expect(checkAfterClear.isDuplicate).toBe(false);
+    expect(checkAfterClear.lockAcquired).toBe(true);
+  });
 });

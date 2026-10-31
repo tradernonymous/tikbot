@@ -182,11 +182,6 @@ describe('SMM Provider Route Hardening (S5, S10, B7)', () => {
   it('deduplicates identical order submissions within window to prevent double charges (P9)', async () => {
     const createOrderSpy = vi.spyOn(SMMProviderAdapter.prototype, 'createExternalOrder').mockResolvedValue({
       externalOrderId: 'ext-dedupe-1',
-      status: 'PENDING',
-      charge: 1.5,
-      currency: 'USD',
-      startCount: 0,
-      remains: 1000,
     });
 
     const orderPayload = {
