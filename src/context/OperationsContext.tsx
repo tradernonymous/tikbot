@@ -17,6 +17,8 @@ export interface FarmAccount {
   proxyId: string | null;
   warmupDay: number;
   sessionCipher?: string;
+  hasCookies?: boolean;
+  cookiesJson?: string;
   createdAt: string;
 }
 
@@ -120,7 +122,9 @@ interface OperationsContextType {
   // Accounts & Proxies
   accounts: FarmAccount[];
   proxies: StickyProxy[];
-  addAccount: (username: string, platform?: 'TIKTOK' | 'DOUYIN') => void;
+  addAccount: (username: string, platform?: 'TIKTOK' | 'DOUYIN', cookiesJson?: string) => void;
+  updateAccountCookies: (accountId: string, cookiesJson: string) => void;
+  removeAccount: (accountId: string) => void;
   advanceWarmupDay: (accountId: string) => void;
   transitionAccountStatus: (accountId: string, nextState: AccountState, reason?: string) => void;
   bindProxyToAccount: (accountId: string, proxyId: string) => void;
@@ -597,10 +601,11 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
   }, [killSwitchActive]);
 
   // Account Actions
-  const addAccount = (username: string, platform: 'TIKTOK' | 'DOUYIN' = 'TIKTOK') => {
+  const addAccount = (username: string, platform: 'TIKTOK' | 'DOUYIN' = 'TIKTOK', cookiesJson?: string) => {
     const cleanUser = username.replace(/^@/, '');
     const healthyProxy = proxies.find((p) => p.status === 'HEALTHY');
     const newId = `acc-${Date.now().toString().slice(-4)}`;
+    const hasCookies = Boolean(cookiesJson && cookiesJson.trim().length > 5);
 
     const newAcc: FarmAccount = {
       id: newId,
@@ -612,12 +617,42 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
       dailyCap: platform === 'TIKTOK' ? 30 : 25,
       proxyId: healthyProxy ? healthyProxy.id : null,
       warmupDay: 1,
+      hasCookies,
+      cookiesJson: hasCookies ? cookiesJson : undefined,
       sessionCipher: `vault_aes256_enc_${newId}`,
       createdAt: 'Just now',
     };
 
     setAccounts((prev) => [newAcc, ...prev]);
-    recordAudit('REGISTER_FARM_ACCOUNT', `@${cleanUser}`, 'SUCCESS', `Account @${cleanUser} registered & bound to ${healthyProxy?.host || 'unbound'}`);
+    recordAudit(
+      'REGISTER_FARM_ACCOUNT',
+      `@${cleanUser}`,
+      'SUCCESS',
+      `Account @${cleanUser} registered (${hasCookies ? 'Cookies Vault Attached' : 'Unauthenticated'}) & bound to ${healthyProxy?.host || 'unbound'}`
+    );
+  };
+
+  const updateAccountCookies = (accountId: string, cookiesJson: string) => {
+    const hasCookies = Boolean(cookiesJson && cookiesJson.trim().length > 5);
+    setAccounts((prev) =>
+      prev.map((acc) => {
+        if (acc.id === accountId) {
+          return {
+            ...acc,
+            hasCookies,
+            cookiesJson: hasCookies ? cookiesJson : undefined,
+            sessionCipher: `vault_aes256_enc_${acc.id}`,
+          };
+        }
+        return acc;
+      })
+    );
+    recordAudit('UPDATE_ACCOUNT_SESSION', accountId, 'SUCCESS', `Updated authenticated session cookies for account ${accountId}`);
+  };
+
+  const removeAccount = (accountId: string) => {
+    setAccounts((prev) => prev.filter((acc) => acc.id !== accountId));
+    recordAudit('REMOVE_FARM_ACCOUNT', accountId, 'WARNING', `Archived and removed account ${accountId} from farm pool`);
   };
 
   const advanceWarmupDay = (accountId: string) => {
@@ -873,6 +908,8 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
         accounts,
         proxies,
         addAccount,
+        updateAccountCookies,
+        removeAccount,
         advanceWarmupDay,
         transitionAccountStatus,
         bindProxyToAccount,

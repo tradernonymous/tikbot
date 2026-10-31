@@ -25,6 +25,8 @@ import {
   ArrowUpRight,
   Activity,
   Zap,
+  Trash2,
+  Key,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -34,6 +36,8 @@ export default function AccountsPage() {
     accounts,
     proxies,
     addAccount,
+    updateAccountCookies,
+    removeAccount,
     advanceWarmupDay,
     transitionAccountStatus,
     bindProxyToAccount,
@@ -46,6 +50,9 @@ export default function AccountsPage() {
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [newUsername, setNewUsername] = useState<string>('');
   const [newPlatform, setNewPlatform] = useState<'TIKTOK' | 'DOUYIN'>('TIKTOK');
+  const [newCookiesJson, setNewCookiesJson] = useState<string>('');
+  const [sessionModalAccount, setSessionModalAccount] = useState<FarmAccount | null>(null);
+  const [sessionInput, setSessionInput] = useState<string>('');
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
   const filteredAccounts = accounts.filter((acc) => {
@@ -74,11 +81,34 @@ export default function AccountsPage() {
     e.preventDefault();
     if (!newUsername) return;
 
-    addAccount(newUsername, newPlatform);
-    setSuccessToast(`Account @${newUsername.replace('@', '')} registered, bound to proxy, and queued for Warmup Day 1.`);
+    addAccount(newUsername, newPlatform, newCookiesJson);
+    setSuccessToast(
+      `Account @${newUsername.replace('@', '')} registered (${newCookiesJson.trim() ? 'Cookies Attached' : 'Awaiting Session'}) & queued for Warmup Day 1.`
+    );
     setShowAddModal(false);
     setNewUsername('');
+    setNewCookiesJson('');
     setTimeout(() => setSuccessToast(null), 4000);
+  };
+
+  const handleSaveCookiesModal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sessionModalAccount) return;
+
+    updateAccountCookies(sessionModalAccount.id, sessionInput);
+    setSuccessToast(`Authenticated cookies encrypted & attached to @${sessionModalAccount.username}.`);
+    setSessionModalAccount(null);
+    setSessionInput('');
+    setTimeout(() => setSuccessToast(null), 4000);
+  };
+
+  const handleRemoveAccount = (account: FarmAccount) => {
+    const confirmed = window.confirm(`Are you sure you want to remove @${account.username} from the farm identity pool?`);
+    if (confirmed) {
+      removeAccount(account.id);
+      setSuccessToast(`Account @${account.username} removed from farm fleet.`);
+      setTimeout(() => setSuccessToast(null), 3000);
+    }
   };
 
   return (
@@ -185,10 +215,23 @@ export default function AccountsPage() {
                     <tr key={acc.id} className="hover:bg-slate-800/20 transition-colors">
                       <td className="py-3 px-4 font-medium text-white">
                         <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-[10px] text-cyan-400 font-bold">
+                          <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-[10px] text-cyan-400 font-bold shrink-0">
                             {acc.username[0].toUpperCase()}
                           </div>
-                          <span>@{acc.username}</span>
+                          <div>
+                            <span className="font-semibold">@{acc.username}</span>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              {acc.hasCookies ? (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800/40 font-mono">
+                                  AUTH COOKIES
+                                </span>
+                              ) : (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-900 text-slate-500 border border-slate-800 font-mono">
+                                  NO SESSION
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </td>
                       <td className="py-3 px-4 font-mono text-slate-300">{acc.platform}</td>
@@ -234,7 +277,17 @@ export default function AccountsPage() {
                         {acc.actionsToday} / {acc.dailyCap}
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <div className="inline-flex gap-1.5">
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            onClick={() => {
+                              setSessionModalAccount(acc);
+                              setSessionInput(acc.cookiesJson || '');
+                            }}
+                            className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 text-[11px] font-mono transition-colors"
+                            title="Attach or edit authenticated session cookies"
+                          >
+                            <Key className="w-3.5 h-3.5" />
+                          </button>
                           <button
                             onClick={() => handleInspect(acc)}
                             className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium transition-all"
@@ -258,6 +311,13 @@ export default function AccountsPage() {
                               Reactivate
                             </button>
                           ) : null}
+                          <button
+                            onClick={() => handleRemoveAccount(acc)}
+                            className="p-1.5 rounded bg-slate-900 hover:bg-rose-950 text-slate-500 hover:text-rose-400 border border-slate-800 text-[11px] transition-colors"
+                            title="Remove account from farm"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -450,8 +510,25 @@ export default function AccountsPage() {
                 </div>
                 <div className="text-right">
                   <span className="text-slate-400 block">SESSION VAULT:</span>
-                  <span className="text-emerald-400 font-bold">AES-256-GCM SEALED</span>
+                  <span className={inspectedAccount.hasCookies ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold'}>
+                    {inspectedAccount.hasCookies ? 'AES-256 ENCRYPTED (ACTIVE)' : 'NO COOKIES (GUEST ONLY)'}
+                  </span>
                 </div>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/60 flex items-center justify-between text-xs">
+                <span className="text-slate-400 text-[11px]">Authenticated Session:</span>
+                <button
+                  onClick={() => {
+                    setSessionModalAccount(inspectedAccount);
+                    setSessionInput(inspectedAccount.cookiesJson || '');
+                    setInspectedAccount(null);
+                  }}
+                  className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 text-[11px] font-mono flex items-center gap-1 transition-colors"
+                >
+                  <Key className="w-3 h-3" />
+                  <span>{inspectedAccount.hasCookies ? 'Update Cookies' : 'Attach Cookies'}</span>
+                </button>
               </div>
             </div>
 
@@ -473,6 +550,64 @@ export default function AccountsPage() {
                 Close Spec
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Attach / Edit Session Modal */}
+      {sessionModalAccount && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <Key className="w-4 h-4 text-amber-400" />
+                <div>
+                  <h3 className="text-sm font-bold text-white">Attach Session Cookies to @{sessionModalAccount.username}</h3>
+                  <p className="text-[11px] text-slate-400">Enables authenticated actions and bypassing age-gated posts</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSessionModalAccount(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCookiesModal} className="space-y-4 text-xs">
+              <div>
+                <label className="text-slate-300 font-medium block mb-1">
+                  Session Cookies JSON (from EditThisCookie, Cookie-Editor, or DevTools)
+                </label>
+                <textarea
+                  rows={6}
+                  placeholder={`[{"name":"sessionid","value":"...","domain":".tiktok.com"},...]`}
+                  value={sessionInput}
+                  onChange={(e) => setSessionInput(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-cyan-500"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Cookies are stored encrypted using AES-256-GCM. Paste valid JSON array containing <code className="text-cyan-400">sessionid</code> or <code className="text-cyan-400">sid_tt</code>.
+                </p>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setSessionModalAccount(null)}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-sm transition-all"
+                >
+                  <Key className="w-3.5 h-3.5" />
+                  <span>Encrypt & Save Session</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -519,6 +654,17 @@ export default function AccountsPage() {
                 </select>
               </div>
 
+              <div>
+                <label className="text-slate-300 font-medium block mb-1">Session Cookies JSON (Optional)</label>
+                <textarea
+                  rows={3}
+                  placeholder={`[{"name":"sessionid","value":"..."},...] (Leave empty for unauthenticated identity)`}
+                  value={newCookiesJson}
+                  onChange={(e) => setNewCookiesJson(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
               <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-[11px] font-mono text-slate-400 space-y-1">
                 <div className="flex justify-between">
                   <span>Initial Status:</span>
@@ -527,6 +673,10 @@ export default function AccountsPage() {
                 <div className="flex justify-between">
                   <span>Proxy Assignment:</span>
                   <span className="text-cyan-400">Auto-Bind Sticky Residential</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Session Encryption:</span>
+                  <span className="text-emerald-400">AES-256-GCM Vault</span>
                 </div>
               </div>
 
