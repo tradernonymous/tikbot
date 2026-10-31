@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo, ReactNode } from 'react';
 import { getDevFixtures, FixtureDataset } from '@/fixtures';
 import { WarmupEngine } from '@/farm/warmup-routine';
 import { AccountLifecycleManager, AccountState } from '@/farm/account-lifecycle';
@@ -1017,41 +1017,70 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
         removeAccount,
         advanceWarmupDay,
         transitionAccountStatus,
-        bindProxyToAccount,
-        testProxyLatency,
-        campaigns,
-        createCampaign,
-        approveCampaign,
-        rejectCampaign,
-        pauseCampaign,
-        resumeCampaign,
-        farmTasks,
-        dispatchFarmTask,
-        pauseTask,
-        resumeTask,
-        cancelTask,
-        publishJobs,
-        mediaAssets,
-        schedulePublishJob,
-        approvePublishJob,
-        rejectPublishJob,
-        publishNow,
-        researchedPosts,
-        addResearchedPost,
-        auditLogs,
-        notifications,
-        clearNotifications,
-        terminalLogs,
-        killSwitchActive,
-        toggleKillSwitch,
-        caps,
-        updateCaps,
-      }}
-    >
+  const contextValue = useMemo<OperationsContextType>(
+    () => ({
+      accounts,
+      proxies,
+      addAccount,
+      updateAccountCookies,
+      removeAccount,
+      advanceWarmupDay,
+      transitionAccountStatus,
+      bindProxyToAccount,
+      testProxyLatency,
+      campaigns,
+      createCampaign,
+      approveCampaign,
+      rejectCampaign,
+      pauseCampaign,
+      resumeCampaign,
+      farmTasks,
+      dispatchFarmTask,
+      pauseTask,
+      resumeTask,
+      cancelTask,
+      publishJobs,
+      mediaAssets,
+      schedulePublishJob,
+      approvePublishJob,
+      rejectPublishJob,
+      publishNow,
+      researchedPosts,
+      addResearchedPost,
+      auditLogs,
+      notifications,
+      clearNotifications,
+      terminalLogs,
+      killSwitchActive,
+      toggleKillSwitch,
+      caps,
+      updateCaps,
+    }),
+    [
+      accounts,
+      proxies,
+      campaigns,
+      farmTasks,
+      publishJobs,
+      mediaAssets,
+      researchedPosts,
+      auditLogs,
+      notifications,
+      terminalLogs,
+      killSwitchActive,
+      caps,
+    ]
+  );
+
+  return (
+    <OperationsContext.Provider value={contextValue}>
       {children}
     </OperationsContext.Provider>
   );
 }
+
+export { useUi } from './UiContext';
+export { useNotifications } from './NotificationsContext';
 
 export function useOperations() {
   const context = useContext(OperationsContext);
