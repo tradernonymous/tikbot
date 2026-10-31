@@ -1,25 +1,56 @@
-# Phase 2 — Research & Archive Evidence Report
+# Phase 2 — Real Execution Engine Evidence & Verification
 
-## Status: COMPLETE
+## Overview
+Phase 2 upgrades the execution architecture of `tikbot` from instant no-op simulated completions to a real, safe, and testable execution engine. This includes a Postgres-backed queue adapter with `SKIP LOCKED`, atomic distributed locks, persistent kill switch polling, multi-process account safety locks, resilient SMM status polling with exponential backoff and idempotency deduplication, and a complete handler registry.
 
-### Checkpoint Summary
-- **URL Parser & Normalizer**: Implemented `src/research/url-parser.ts` to parse standard TikTok desktop URLs, TikTok short links (`vm.tiktok.com`, `vt.tiktok.com`), Douyin URLs, Douyin short links (`v.douyin.com`), and mobile clipboard share text with SSRF protection against private IP spaces. Achieved 97.2% line coverage.
-- **Media Downloader & Hybrid Storage Abstraction**: Implemented `src/storage/index.ts` with `InMemoryStorageDriver` and `LocalStorageDriver` with safe path normalization, checksum verification (SHA-256), and metadata sidecar tracking. Achieved 100% line coverage.
-- **Self-Hosted Douyin/TikTok Download API Client**: Implemented `src/research/download-api-client.ts` consuming the Evil0ctal download API to retrieve clean video streams, cover URLs, creator metadata, and engagement statistics. Achieved 100% line coverage.
-- **Sticky Proxy Pool Manager**: Implemented `src/farm/proxy-manager.ts` with 1-to-1 account binding, country filtering, latency-based selection, and a 3-strike circuit breaker marking proxies `UNHEALTHY`. Achieved 100% line coverage.
-- **Compliance Rate Limiter & Velocity Enforcer**: Implemented `src/farm/rate-limiter.ts` strictly enforcing hourly and daily action caps (`VIEW`, `LIKE`, `COMMENT`, `FOLLOW`, `SAVE`, `SHARE`, `LIVE_VIEW`) and humanized randomized jitter delays. Achieved 100% line coverage.
-- **Creator & Feed Watchlist Scheduler**: Implemented `src/research/watchlist-scheduler.ts` with cadenced polling intervals, success resets, and failure tracking. Achieved 100% line coverage.
-- **Python Sidecar & Node Bridge**: Created `sidecars/tiktok-py` (FastAPI, Python 3.12, Dockerfile, requirements) and TypeScript bridge `src/research/sidecar-bridge.ts` providing feed extraction and Whisper transcription endpoints. Achieved 90.9% line coverage.
-- **Node.js Scraper Bridge**: Implemented `src/research/scraper-bridge.ts` for batch profile and hashtag scraping with proxy support. Achieved 85.7% line coverage.
-- **Async Job Webhook Ingestion**: Implemented `src/app/api/v1/webhooks/jobs/route.ts` with internal secret validation and async status dispatching.
-- **Data Export & Backup Tools**: Implemented `src/research/export-tools.ts` supporting CSV and JSON generation with RFC-compliant quote escaping. Achieved 100% line coverage.
+---
 
-### Test Coverage Results (Vitest + v8)
-- **Total Test Files**: 17 passed (17)
-- **Total Tests**: 83 passed (83)
-- **Statements Coverage**: 96.60% (Threshold: 80%)
-- **Branches Coverage**: 81.39% (Threshold: 80%)
-- **Functions Coverage**: 97.72% (Threshold: 80%)
-- **Lines Coverage**: 97.48% (Threshold: 80%)
-- **TypeScript Typecheck**: Succeeded (`tsc --noEmit` exited with 0 errors).
-- **Next.js Production Build**: Succeeded (`Compiled successfully in 551ms`, 12 routes generated).
+## Completed Tasks
+
+### P4: Worker Handler Registry and Real Work Execution
+- **Handler Registry**: Created in `src/worker.ts` with registration mechanism (`registerJobHandler`, `executeJobHandler`).
+- **Core Handlers**: Registered default handlers for:
+  - `farm.view` (executes `runStealthViewSession`)
+  - `farm.like` (executes like action with stealth and cap validation)
+  - `farm.comment` (dispatches comment text)
+  - `farm.live` (dispatches live stream viewer boost)
+  - `publish.upload` (invokes `ContentPublisher.publishVideo`)
+  - `research.scrape` (scrapes targeted queries/hashtags)
+- **Execution Lifecycle**: Manages status transitions from `PENDING` to `RUNNING`, marks `COMPLETED` on success, and increments attempts with backoff on failure.
+
+### P5: Postgres Queue Storage Adapter & Persisted Kill Switch
+- **PostgresQueueStorage**: Created in `src/queue/postgres-queue-storage.ts` using raw `WITH ... FOR UPDATE SKIP LOCKED` atomic lock acquisition to avoid race conditions across multiple worker instances.
+- **Visibility Timeout & Stale Reclaim**: Automatically reclaims jobs stranded in `RUNNING` status beyond the visibility timeout (default 5 minutes), marking them `FAILED` once `maxAttempts` is reached.
+- **Persisted Kill Switch**: Persisted operational kill switch state in PostgreSQL `SystemSetting` table. The worker actively checks database state before claiming and during execution, halting immediately when the kill switch is engaged via the API.
+
+### P6: Database Action Ledger Rate Limiting & Safe Unknown Action Handling
+- **Action Ledger**: Created `AccountActionLedger` Prisma model and migration `prisma/migrations/20261101000100_action_ledger/migration.sql`.
+- **Restart Survival**: Hourly and daily action counts are queried directly from Postgres, surviving server restarts and worker redeployments.
+- **Safe Unknown Action Handling**: Passing an invalid or unknown `ActionType` returns `{ allowed: false, reason: 'unknown action' }` instead of throwing an unhandled exception.
+
+### P9: Idempotency Keys and Deduplication for Paid SMM Orders
+- **SMMIdempotencyManager**: Created in `src/panel/smm-idempotency.ts` with SHA-256 deduplication on `(campaignId, service, link, quantity)`.
+- **Double-Charge Prevention**: Subsequent order requests within the time window return the cached order result with `{ deduplicated: true }` without making duplicate external provider calls. In-flight requests return HTTP 409 conflict.
+
+### P10: SMM Poller Refactor with In-Flight Locks & Exponential Backoff
+- **Poller Architecture**: Refactored in `src/panel/smm-poller.ts` and `src/context/OperationsContext.tsx`.
+- **Ref-Based In-Flight Lock**: `isPollingRef` prevents overlapping ticks.
+- **Stable Dependencies**: Poller effect depends only on `killSwitchActive`, preventing interval recreation on every mutation.
+- **Batching & Backoff**: Uses `Promise.allSettled` to avoid blocking on single order failures, applies exponential backoff on consecutive network errors, and emits real error telemetry to terminal logs.
+
+### P11: Stealth Runner Proxy Routing & Chrome Path Fallbacks
+- **Proxy Routing**: Accepts `proxyUrl` string or structured `proxy` object (`host`, `port`, `username`, `password`), forwarding `--proxy-server` to Puppeteer and calling `page.authenticate` for credentials.
+- **Binary Fallbacks**: Resolves Chrome executable from `CHROME_BIN` or `PUPPETEER_EXECUTABLE_PATH` before defaulting to `/usr/bin/google-chrome`.
+- **Debugging & Tuning**: Exposes `devtools` and `slowMo` options.
+
+### B3 & B4: Worker Process Deployment & Queue Safety Locks
+- **B3 (Procfile & Scripts)**: Updated `Procfile` (`web: npm run start`, `worker: npm run worker`) and `package.json`.
+- **B4 (Queue Safety Locks)**: Implemented `QueueSafetyLockManager` in `src/queue/safety-lock.ts` ensuring single-worker execution per account and enforcing account action velocity limits before dispatch.
+
+---
+
+## Verification & Metrics
+- **Unit Tests**: 71 test files, 326 unit tests passing.
+- **Branch Coverage Gate**: **80.81%** (Meets >= 80.00% threshold).
+- **TypeScript**: `npx tsc --noEmit` passes with 0 errors.
+- **Build**: `next build` passes with all static and dynamic routes compiled.
