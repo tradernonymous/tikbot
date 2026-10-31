@@ -31,6 +31,7 @@ export default function SettingsPage() {
   // SMM Provider Settings
   const [smmUrl, setSmmUrl] = useState('https://supplierfollower.com/api/v2');
   const [smmApiKey, setSmmApiKey] = useState('');
+  const [smmKeyConfigured, setSmmKeyConfigured] = useState(false);
   const [smmBalance, setSmmBalance] = useState<{ balance: number; currency: string } | null>(null);
   const [smmChecking, setSmmChecking] = useState(false);
   const [smmSyncing, setSmmSyncing] = useState(false);
@@ -38,18 +39,57 @@ export default function SettingsPage() {
   const [smmError, setSmmError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Load from localStorage if present
-    const savedUrl = localStorage.getItem('TIKBOT_SMM_URL');
-    const savedKey = localStorage.getItem('TIKBOT_SMM_KEY');
-    if (savedUrl) setSmmUrl(savedUrl);
-    if (savedKey) setSmmApiKey(savedKey);
+    // Clean up any legacy localStorage key (S7)
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('TIKBOT_SMM_KEY');
+    }
+
+    // Load server-side configuration status
+    fetch('/api/v1/system/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.settings) {
+          if (data.settings.SMM_PROVIDER_URL?.value) {
+            setSmmUrl(data.settings.SMM_PROVIDER_URL.value);
+          }
+          if (data.settings.SMM_PROVIDER_API_KEY?.configured) {
+            setSmmKeyConfigured(true);
+          }
+        }
+      })
+      .catch(() => {});
   }, []);
 
-  const handleSave = () => {
-    if (smmUrl) localStorage.setItem('TIKBOT_SMM_URL', smmUrl);
-    if (smmApiKey) localStorage.setItem('TIKBOT_SMM_KEY', smmApiKey);
-    setSavedMessage('Settings successfully saved to local configuration.');
-    setTimeout(() => setSavedMessage(null), 3500);
+  const handleSave = async () => {
+    setSmmError(null);
+    try {
+      if (smmUrl.trim()) {
+        await fetch('/api/v1/system/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: 'SMM_PROVIDER_URL', value: smmUrl.trim() }),
+        });
+      }
+
+      if (smmApiKey.trim()) {
+        const res = await fetch('/api/v1/system/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: 'SMM_PROVIDER_API_KEY', value: smmApiKey.trim() }),
+        });
+        const data = await res.json();
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to securely save API key');
+        }
+        setSmmKeyConfigured(true);
+        setSmmApiKey('');
+      }
+
+      setSavedMessage('Settings successfully encrypted and saved to server.');
+      setTimeout(() => setSavedMessage(null), 3500);
+    } catch (err: any) {
+      setSmmError(err?.message || 'Failed to save configuration');
+    }
   };
 
   const handleCheckSmmBalance = async () => {
@@ -59,7 +99,7 @@ export default function SettingsPage() {
       const res = await fetch('/api/v1/smm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'balance', apiUrl: smmUrl, apiKey: smmApiKey }),
+        body: JSON.stringify({ action: 'balance' }),
       });
       const data = await res.json();
       if (!data.success) {
@@ -80,7 +120,7 @@ export default function SettingsPage() {
       const res = await fetch('/api/v1/smm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'services', apiUrl: smmUrl, apiKey: smmApiKey }),
+        body: JSON.stringify({ action: 'services' }),
       });
       const data = await res.json();
       if (!data.success) {
@@ -388,16 +428,27 @@ export default function SettingsPage() {
               </div>
 
               <div>
-                <label className="text-slate-300 font-medium block mb-1">Provider API Key</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-300 font-medium block">Provider API Key</label>
+                  {smmKeyConfigured && (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-800 text-emerald-400 font-mono">
+                      ✓ ENCRYPTED SERVER-SIDE
+                    </span>
+                  )}
+                </div>
                 <input
                   type="password"
-                  placeholder="Paste your SMM provider API key here..."
+                  placeholder={
+                    smmKeyConfigured
+                      ? '•••••••••••••••••••••••••••••••• (Configured & Encrypted on Server)'
+                      : 'Paste your SMM provider API key here...'
+                  }
                   value={smmApiKey}
                   onChange={(e) => setSmmApiKey(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
                 />
                 <p className="text-[11px] text-slate-400 mt-1">
-                  Key is saved securely in your browser and passed only to the internal backend proxy at <code className="text-cyan-400">/api/v1/smm</code>.
+                  Key is encrypted with AES-256-GCM and stored strictly server-side. It is never stored in browser localStorage or sent to client payloads.
                 </p>
               </div>
 

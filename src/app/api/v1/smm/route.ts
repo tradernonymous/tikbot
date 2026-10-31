@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireSession, handleSessionRefresh } from '@/security/auth';
 import { SMMProviderAdapter } from '@/panel/smm-provider';
+import { getSystemSetting } from '@/storage/system-settings';
 
 const ALLOWED_HOSTS = [
   'supplierfollower.com',
@@ -102,8 +103,8 @@ export async function POST(req: NextRequest) {
     }
 
     const validatedData = parseResult.data;
-    const providerUrl = process.env.SMM_PROVIDER_URL || 'https://supplierfollower.com/api/v2';
-    const providerKey = process.env.SMM_PROVIDER_API_KEY || '';
+    const providerUrl = (await getSystemSetting('SMM_PROVIDER_URL')) || process.env.SMM_PROVIDER_URL || 'https://supplierfollower.com/api/v2';
+    const providerKey = (await getSystemSetting('SMM_PROVIDER_API_KEY')) || process.env.SMM_PROVIDER_API_KEY || '';
 
     const urlValidation = validateProviderUrl(providerUrl);
     if (!urlValidation.valid) {
