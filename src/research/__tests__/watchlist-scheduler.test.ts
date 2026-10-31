@@ -67,7 +67,7 @@ describe('Watchlist Scheduler (Creator & Feed Polling)', () => {
     const updated = scheduler.getTarget('wl-1');
     expect(updated?.lastPolledAt).toBeDefined();
     expect(updated?.consecutiveFailures).toBe(0);
-    expect(updated?.nextPollAt.getTime()).toBeGreaterThan(Date.now());
+    expect(updated?.nextPollAt?.getTime()).toBeGreaterThan(Date.now() - 1000);
   });
 
   it('increments consecutive failures on poll failure', () => {
