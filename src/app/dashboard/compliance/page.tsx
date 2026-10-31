@@ -20,7 +20,15 @@ import {
 } from 'lucide-react';
 
 export default function CompliancePage() {
-  const { auditLogs, killSwitchActive } = useOperations();
+  const { accounts, auditLogs, killSwitchActive } = useOperations();
+
+  const bannedAccounts = accounts.filter(
+    (a) => a.status === 'BANNED' || (a.status as string) === 'CHALLENGE'
+  ).length;
+  const challengeRate =
+    accounts.length > 0
+      ? `${((bannedAccounts / accounts.length) * 100).toFixed(1)}%`
+      : '—';
 
   const [filterAction, setFilterAction] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -114,7 +122,7 @@ export default function CompliancePage() {
           </div>
           <div>
             <div className="text-xs text-slate-400 font-medium">Challenge Rate</div>
-            <div className="text-lg font-bold text-emerald-400 font-mono">0.0%</div>
+            <div className="text-lg font-bold text-emerald-400 font-mono">{challengeRate}</div>
             <div className="text-[10px] text-slate-400">Threshold: &lt; 15%</div>
           </div>
         </div>

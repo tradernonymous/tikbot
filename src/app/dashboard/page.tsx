@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { StatCard } from '@/components/StatCard';
+import { Metric } from '@/components/Metric';
 import { StatusBadge } from '@/components/StatusBadge';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionErrorBoundary } from '@/components/SectionErrorBoundary';
@@ -55,6 +56,14 @@ export default function DashboardOverview() {
     (a) => a.status === 'ACTIVE' || a.warmupDay >= 7
   ).length;
 
+  const bannedAccounts = accounts.filter(
+    (a) => a.status === 'BANNED' || (a.status as string) === 'CHALLENGE'
+  ).length;
+  const banRate =
+    totalAccounts > 0
+      ? `${((bannedAccounts / totalAccounts) * 100).toFixed(1)}%`
+      : null;
+
   const maxOutlier =
     researchedPosts.length > 0
       ? Math.max(...researchedPosts.map((p) => p.outlierScore || 0))
@@ -102,26 +111,30 @@ export default function DashboardOverview() {
 
       {/* Fleet Vitals Strip */}
       <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-md grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
-        <div>
-          <span className="text-slate-400 block text-[11px]">RUNNING TASKS</span>
-          <span className="text-white font-bold text-sm">{runningTasksCount} Active Tasks</span>
-          <span className="text-emerald-400 block text-[10px]">Backlog: Normal</span>
-        </div>
-        <div>
-          <span className="text-slate-400 block text-[11px]">FARM NODES</span>
-          <span className="text-cyan-400 font-bold text-sm">{activeAccounts} Active / {totalAccounts} Total</span>
-          <span className="text-slate-400 block text-[10px]">100% Sticky Residential</span>
-        </div>
-        <div>
-          <span className="text-slate-400 block text-[11px]">BAN CHALLENGE RATE</span>
-          <span className="text-emerald-400 font-bold text-sm">0.0%</span>
-          <span className="text-slate-400 block text-[10px]">Safe Threshold (&lt; 15%)</span>
-        </div>
-        <div>
-          <span className="text-slate-400 block text-[11px]">DAILY COMPLIANCE</span>
-          <span className="text-purple-400 font-bold text-sm">STRICT ENFORCED</span>
-          <span className="text-slate-400 block text-[10px]">Anti-Bot Jitter Active</span>
-        </div>
+        <Metric
+          label="RUNNING TASKS"
+          value={`${runningTasksCount} Active`}
+          subtext={runningTasksCount > 0 ? 'Executing on worker engine' : 'Backlog normal'}
+          provenance="live"
+        />
+        <Metric
+          label="FARM NODES"
+          value={`${activeAccounts} Active / ${totalAccounts} Total`}
+          subtext={totalAccounts > 0 ? `${Math.round((activeAccounts / Math.max(1, totalAccounts)) * 100)}% active accounts` : 'No accounts loaded'}
+          provenance="live"
+        />
+        <Metric
+          label="BAN CHALLENGE RATE"
+          value={banRate}
+          subtext={banRate !== null ? 'Threshold < 15%' : 'Requires registered accounts'}
+          provenance={banRate !== null ? 'live' : 'unknown'}
+        />
+        <Metric
+          label="DAILY COMPLIANCE"
+          value={killSwitchActive ? 'EMERGENCY LOCKDOWN' : 'STRICT ENFORCED'}
+          subtext={killSwitchActive ? 'Operations halted by kill switch' : 'Anti-bot jitter active'}
+          provenance="live"
+        />
       </div>
 
       {/* Primary KPI Grid */}
@@ -155,11 +168,11 @@ export default function DashboardOverview() {
         />
         <StatCard
           title="Compliance & Safety"
-          value="100%"
-          subtitle="All proxy sticky binds & daily caps enforced"
-          trend="Safe"
-          trendPositive={true}
-          provenance="live"
+          value={killSwitchActive ? 'HALTED' : (totalAccounts > 0 ? `${Math.round((activeAccounts / totalAccounts) * 100)}%` : null)}
+          subtitle={killSwitchActive ? 'Kill switch active: operations halted' : 'Proxy sticky binds & daily caps enforced'}
+          trend={killSwitchActive ? 'Locked' : 'Safe'}
+          trendPositive={!killSwitchActive}
+          provenance={totalAccounts > 0 ? 'live' : 'unknown'}
           icon={<Shield className="w-4 h-4 text-purple-400" />}
         />
       </div>
