@@ -29,7 +29,7 @@ export const getDashboardAggregates = cache(async (): Promise<DashboardAggregate
       prisma.platformAccount.count({ where: { status: 'ACTIVE' } }),
       prisma.platformAccount.count({ where: { status: 'BANNED' } }),
       prisma.campaign.count({ where: { status: 'PENDING_APPROVAL' } }),
-      prisma.publishJob.count({ where: { status: 'PENDING_APPROVAL' } }),
+      prisma.publishJob.count({ where: { status: 'PENDING' } }),
       prisma.job.count({ where: { status: 'RUNNING' } }),
       prisma.researchPost.aggregate({ _max: { outlierScore: true } }),
     ]);

@@ -1007,16 +1007,6 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     recordAudit('UPDATE_VELOCITY_CAPS', 'SYSTEM', 'SUCCESS', 'Updated per-account rate limits & anti-bot jitter');
   };
 
-  return (
-    <OperationsContext.Provider
-      value={{
-        accounts,
-        proxies,
-        addAccount,
-        updateAccountCookies,
-        removeAccount,
-        advanceWarmupDay,
-        transitionAccountStatus,
   const contextValue = useMemo<OperationsContextType>(
     () => ({
       accounts,
