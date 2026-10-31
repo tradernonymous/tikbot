@@ -55,10 +55,6 @@ export default function LoginPage() {
           </div>
         )}
 
-        <div className="mb-4 p-2.5 rounded-lg bg-cyan-950/40 border border-cyan-800/40 text-[11px] text-cyan-300 font-mono text-center">
-          Default password: <span className="text-white font-bold underline">admin</span> (or your Railway <code className="text-cyan-400">ADMIN_PASSWORD</code>)
-        </div>
-
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">

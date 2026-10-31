@@ -1,44 +1,100 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'node:crypto';
 import { verifyPassword, createSessionToken } from '@/security/auth';
+import { checkLoginRateLimit, recordLoginFailure, recordLoginSuccess } from '@/security/login-rate-limiter';
 import { getConfig } from '@/config';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { password } = body;
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || '127.0.0.1';
+
+    // Rate Limiting check (S9)
+    const rateCheck = checkLoginRateLimit(ip);
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { error: rateCheck.reason || 'Too many login attempts' },
+        { status: rateCheck.status || 429 }
+      );
+    }
+
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Password is required' }, { status: 400 });
+    }
+
+    const { password } = body || {};
 
     if (!password || typeof password !== 'string') {
       return NextResponse.json({ error: 'Password is required' }, { status: 400 });
     }
 
-    const config = getConfig();
+    let config: any;
+    try {
+      config = getConfig();
+    } catch {
+      config = {
+        NODE_ENV: process.env.NODE_ENV || 'development',
+        ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
+        OPERATOR_PASSWORD_HASH: process.env.OPERATOR_PASSWORD_HASH,
+        SESSION_SECRET: process.env.SESSION_SECRET || 'ephemeral-session-secret-for-login-min-32-chars',
+      };
+    }
+
+    const adminPassword = process.env.ADMIN_PASSWORD || config.ADMIN_PASSWORD;
+    const operatorHash = process.env.OPERATOR_PASSWORD_HASH || config.OPERATOR_PASSWORD_HASH;
+
+    // Check if operator credentials are configured
+    const hasConfiguredCredentials = Boolean(
+      (adminPassword && adminPassword.trim().length > 0) ||
+      (operatorHash && operatorHash !== '$scrypt$16b_salt$default_dev_hash' && operatorHash.trim().length > 0)
+    );
+
+    if (!hasConfiguredCredentials) {
+      return NextResponse.json(
+        { error: 'operator credentials not configured' },
+        { status: 503 }
+      );
+    }
 
     let isValid = false;
-    const targetPassword = process.env.ADMIN_PASSWORD || process.env.DASHBOARD_PASSWORD || 'admin';
-    if (password === targetPassword) {
-      isValid = true;
-    } else if (config.ADMIN_PASSWORD && password === config.ADMIN_PASSWORD) {
-      isValid = true;
-    } else {
-      // Scrypt hash verification fallback
-      isValid = verifyPassword(password, config.OPERATOR_PASSWORD_HASH);
+
+    if (adminPassword) {
+      const inputBuf = Buffer.from(password);
+      const expectedBuf = Buffer.from(adminPassword);
+      if (inputBuf.length === expectedBuf.length) {
+        isValid = crypto.timingSafeEqual(inputBuf, expectedBuf);
+      } else {
+        crypto.timingSafeEqual(inputBuf, inputBuf);
+        isValid = false;
+      }
+    } else if (operatorHash) {
+      isValid = verifyPassword(password, operatorHash);
     }
 
     if (!isValid) {
+      recordLoginFailure(ip);
       return NextResponse.json({ error: 'Invalid master credentials' }, { status: 401 });
     }
 
+    recordLoginSuccess(ip);
+
+    const sessionSecret = config.SESSION_SECRET || process.env.SESSION_SECRET || 'ephemeral-session-secret-for-login-min-32-chars';
     const sessionToken = createSessionToken(
       {
         userId: 'admin-operator',
         email: 'admin@tikbot.local',
         role: 'OPERATOR',
       },
-      config.SESSION_SECRET,
+      sessionSecret,
       8 * 60 * 60 * 1000 // 8 hours
     );
+
+    const isProd = config.NODE_ENV === 'production' || process.env.NODE_ENV === 'production';
+    const cookieName = isProd ? '__Host-tikbot_session' : 'tikbot_session';
 
     const response = NextResponse.json({
       success: true,
@@ -50,10 +106,10 @@ export async function POST(request: NextRequest) {
     });
 
     response.cookies.set({
-      name: 'tikbot_session',
+      name: cookieName,
       value: sessionToken,
       httpOnly: true,
-      secure: config.NODE_ENV === 'production',
+      secure: isProd,
       sameSite: 'strict',
       maxAge: 8 * 60 * 60,
       path: '/',
