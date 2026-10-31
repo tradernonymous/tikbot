@@ -193,3 +193,29 @@ export function requireSession(
 
   return { session: payload, refreshedToken };
 }
+
+/**
+ * Attaches the hardened session cookie to a NextResponse (S11).
+ */
+export function attachSessionCookie(response: NextResponse, token: string): void {
+  const isProd = process.env.NODE_ENV === 'production';
+  const cookieName = isProd ? '__Host-tikbot_session' : 'tikbot_session';
+  response.cookies.set(cookieName, token, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'strict',
+    path: '/',
+    maxAge: 8 * 3600,
+  });
+}
+
+/**
+ * If the session was refreshed via sliding window, attaches the new cookie to the response.
+ */
+export function handleSessionRefresh(auth: RequireSessionResult, response: NextResponse): NextResponse {
+  if (auth.refreshedToken) {
+    attachSessionCookie(response, auth.refreshedToken);
+  }
+  return response;
+}
+
