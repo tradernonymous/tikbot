@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { AccessibleModal } from '@/components/AccessibleModal';
 import { NotImplementedCard } from '@/components/NotImplementedCard';
 import { SectionErrorBoundary } from '@/components/SectionErrorBoundary';
+import { EntityDrawer } from '@/components/EntityDrawer';
 import { useOperations, PublishJob, MediaAsset } from '@/context/OperationsContext';
 import {
   Calendar,
@@ -30,6 +31,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 export default function PublishingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const focusId = searchParams ? searchParams.get('focus') : null;
   const {
     publishJobs,
     schedulePublishJob,
@@ -42,11 +44,31 @@ export default function PublishingPage() {
 
   const [selectedFolder, setSelectedFolder] = useState<string>('ALL');
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [drawerJob, setDrawerJob] = useState<PublishJob | null>(null);
   const [caption, setCaption] = useState('');
   const [targetAccount, setTargetAccount] = useState<string>('@organic_growth_hacker');
   const [platform, setPlatform] = useState<'TIKTOK' | 'INSTAGRAM' | 'YOUTUBE_SHORTS'>('TIKTOK');
   const [autoBoostOnPublish, setAutoBoostOnPublish] = useState<boolean>(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (focusId) {
+      const target = publishJobs.find((j) => j.id === focusId);
+      if (target) {
+        setDrawerJob(target);
+      }
+    }
+  }, [focusId, publishJobs]);
+
+  const handleCloseDrawer = () => {
+    setDrawerJob(null);
+    if (searchParams && searchParams.has('focus')) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('focus');
+      const remaining = params.toString();
+      router.replace(remaining ? `?${remaining}` : window.location.pathname, { scroll: false });
+    }
+  };
 
   // Pre-fill hook from research tab if present in query params
   useEffect(() => {
@@ -276,8 +298,19 @@ export default function PublishingPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                {publishJobs.map((job) => (
-                  <tr key={job.id} className="hover:bg-slate-800/20 transition-colors">
+                {publishJobs.map((job) => {
+                  const isFocused = job.id === focusId;
+                  return (
+                  <tr
+                    key={job.id}
+                    onClick={() => {
+                      setDrawerJob(job);
+                      router.replace(`?focus=${job.id}`, { scroll: false });
+                    }}
+                    className={`hover:bg-slate-800/20 transition-colors cursor-pointer ${
+                      isFocused ? 'bg-cyan-950/40 ring-1 ring-cyan-500' : ''
+                    }`}
+                  >
                     <td className="py-3 px-4 font-medium text-white max-w-[280px] truncate">
                       {job.title}
                     </td>
@@ -340,7 +373,8 @@ export default function PublishingPage() {
                       )}
                     </td>
                   </tr>
-                ))}
+                );
+              })}
               </tbody>
             </table>
           )}
@@ -456,6 +490,13 @@ export default function PublishingPage() {
           </div>
         </form>
       </AccessibleModal>
+
+      <EntityDrawer
+        isOpen={Boolean(drawerJob)}
+        onClose={handleCloseDrawer}
+        entityType="publish_job"
+        data={drawerJob}
+      />
     </div>
   </SectionErrorBoundary>
   );

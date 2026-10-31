@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StatusBadge } from '@/components/StatusBadge';
 import { EmptyState } from '@/components/EmptyState';
 import { AccessibleModal } from '@/components/AccessibleModal';
 import { SectionErrorBoundary } from '@/components/SectionErrorBoundary';
+import { EntityDrawer } from '@/components/EntityDrawer';
 import { useOperations, FarmAccount, StickyProxy } from '@/context/OperationsContext';
 import { generateDeviceFingerprint } from '@/farm/fingerprint';
 import { AccountState } from '@/farm/account-lifecycle';
@@ -31,10 +32,12 @@ import {
   Trash2,
   Key,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function AccountsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const focusId = searchParams ? searchParams.get('focus') : null;
   const {
     accounts,
     proxies,
@@ -50,6 +53,7 @@ export default function AccountsPage() {
   const [activeTab, setActiveTab] = useState<'ACCOUNTS' | 'PROXIES'>('ACCOUNTS');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [inspectedAccount, setInspectedAccount] = useState<any | null>(null);
+  const [drawerAccount, setDrawerAccount] = useState<FarmAccount | null>(null);
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [newUsername, setNewUsername] = useState<string>('');
   const [newPlatform, setNewPlatform] = useState<'TIKTOK' | 'DOUYIN'>('TIKTOK');
@@ -57,6 +61,25 @@ export default function AccountsPage() {
   const [sessionModalAccount, setSessionModalAccount] = useState<FarmAccount | null>(null);
   const [sessionInput, setSessionInput] = useState<string>('');
   const [successToast, setSuccessToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (focusId) {
+      const target = accounts.find((a) => a.id === focusId);
+      if (target) {
+        setDrawerAccount(target);
+      }
+    }
+  }, [focusId, accounts]);
+
+  const handleCloseDrawer = () => {
+    setDrawerAccount(null);
+    if (searchParams && searchParams.has('focus')) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('focus');
+      const remaining = params.toString();
+      router.replace(remaining ? `?${remaining}` : window.location.pathname, { scroll: false });
+    }
+  };
 
   const filteredAccounts = accounts.filter((acc) => {
     if (selectedStatus === 'ALL') return true;
@@ -225,8 +248,18 @@ export default function AccountsPage() {
                 <tbody className="divide-y divide-slate-800/60 text-slate-300">
                   {filteredAccounts.map((acc) => {
                   const proxy = proxies.find((p) => p.id === acc.proxyId);
+                  const isFocused = acc.id === focusId;
                   return (
-                    <tr key={acc.id} className="hover:bg-slate-800/20 transition-colors">
+                    <tr
+                      key={acc.id}
+                      onClick={() => {
+                        setDrawerAccount(acc);
+                        router.replace(`?focus=${acc.id}`, { scroll: false });
+                      }}
+                      className={`hover:bg-slate-800/20 transition-colors cursor-pointer ${
+                        isFocused ? 'bg-cyan-950/40 ring-1 ring-cyan-500' : ''
+                      }`}
+                    >
                       <td className="py-3 px-4 font-medium text-white">
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-[10px] text-cyan-400 font-bold shrink-0">
@@ -693,6 +726,13 @@ export default function AccountsPage() {
           </div>
         </form>
       </AccessibleModal>
+
+      <EntityDrawer
+        isOpen={Boolean(drawerAccount)}
+        onClose={handleCloseDrawer}
+        entityType="account"
+        data={drawerAccount}
+      />
     </div>
   </SectionErrorBoundary>
   );

@@ -5,6 +5,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { EmptyState } from '@/components/EmptyState';
 import { AccessibleModal } from '@/components/AccessibleModal';
 import { SectionErrorBoundary } from '@/components/SectionErrorBoundary';
+import { EntityDrawer } from '@/components/EntityDrawer';
 import { useOperations, GovernedCampaign } from '@/context/OperationsContext';
 import { EngagementRiskScorer } from '@/engagement/risk-scorer';
 import { generateRelatableComment, CommentPersona } from '@/engagement/comment-bank';
@@ -27,10 +28,12 @@ import {
   Copy,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function CampaignsPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const focusId = searchParams ? searchParams.get('focus') : null;
   const {
     campaigns,
     createCampaign,
@@ -46,12 +49,32 @@ export default function CampaignsPage() {
   const [activeTab, setActiveTab] = useState<'CAMPAIGNS' | 'COMMENT_BANK'>('CAMPAIGNS');
   const [selectedActionFilter, setSelectedActionFilter] = useState('ALL');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [drawerCampaign, setDrawerCampaign] = useState<GovernedCampaign | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newTargetUrl, setNewTargetUrl] = useState('');
   const [newActionType, setNewActionType] = useState<'LIKE' | 'COMMENT' | 'SAVE' | 'VIEW' | 'LIVE_VIEW'>('LIKE');
   const [newTargetCount, setNewTargetCount] = useState(100);
   const [newDurationHours, setNewDurationHours] = useState(4);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (focusId) {
+      const target = campaigns.find((c) => c.id === focusId);
+      if (target) {
+        setDrawerCampaign(target);
+      }
+    }
+  }, [focusId, campaigns]);
+
+  const handleCloseDrawer = () => {
+    setDrawerCampaign(null);
+    if (searchParams && searchParams.has('focus')) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('focus');
+      const remaining = params.toString();
+      router.replace(remaining ? `?${remaining}` : window.location.pathname, { scroll: false });
+    }
+  };
 
   // Comment Bank Studio State
   const [persona, setPersona] = useState<CommentPersona>('ENTHUSIAST');
@@ -274,8 +297,19 @@ export default function CampaignsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                    {filteredCampaigns.map((camp) => (
-                      <tr key={camp.id} className="hover:bg-slate-800/20 transition-colors">
+                    {filteredCampaigns.map((camp) => {
+                      const isFocused = camp.id === focusId;
+                      return (
+                      <tr
+                        key={camp.id}
+                        onClick={() => {
+                          setDrawerCampaign(camp);
+                          router.replace(`?focus=${camp.id}`, { scroll: false });
+                        }}
+                        className={`hover:bg-slate-800/20 transition-colors cursor-pointer ${
+                          isFocused ? 'bg-cyan-950/40 ring-1 ring-cyan-500' : ''
+                        }`}
+                      >
                         <td className="py-3 px-4 font-medium text-white max-w-[200px] truncate">
                           {camp.title}
                         </td>
@@ -355,7 +389,8 @@ export default function CampaignsPage() {
                           )}
                         </td>
                       </tr>
-                    ))}
+                    );
+                  })}
                   </tbody>
                 </table>
               )}
@@ -559,6 +594,13 @@ export default function CampaignsPage() {
           </div>
         </form>
       </AccessibleModal>
+
+      <EntityDrawer
+        isOpen={Boolean(drawerCampaign)}
+        onClose={handleCloseDrawer}
+        entityType="campaign"
+        data={drawerCampaign}
+      />
     </div>
   </SectionErrorBoundary>
   );
