@@ -162,10 +162,21 @@ export function requireSession(
   }
 
   // Extract session token from cookie or Authorization header
-  const token =
-    request.cookies.get('__Host-tikbot_session')?.value ||
-    request.cookies.get('tikbot_session')?.value ||
-    request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+  let token: string | undefined;
+  if (request.cookies && typeof request.cookies.get === 'function') {
+    token =
+      request.cookies.get('__Host-tikbot_session')?.value ||
+      request.cookies.get('tikbot_session')?.value;
+  } else {
+    const cookieHeader = request.headers.get('cookie') || '';
+    const match = cookieHeader.match(/(?:^|;\s*)(?:__Host-)?tikbot_session=([^;]+)/);
+    if (match) {
+      token = match[1];
+    }
+  }
+  if (!token) {
+    token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+  }
 
   if (!token) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });

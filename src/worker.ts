@@ -14,6 +14,8 @@ import {
   executeFarmLive,
 } from './farm/farm-actions';
 
+import { globalJobEventBus } from './queue/job-events';
+
 let configuredUploaderDriver: UploaderDriver | null = null;
 let configuredDouyinTikTokClient: DouyinTikTokClient = new DouyinTikTokClient();
 let configuredFarmDriver: FarmInteractionDriver | null = null;
@@ -277,6 +279,13 @@ export async function processNextJob(queue: JobQueueEngine, workerId: string): P
     return false;
   }
 
+  globalJobEventBus.emitJobEvent({
+    type: 'JOB_CLAIMED',
+    jobId: job.id,
+    name: job.name,
+    timestamp: new Date().toISOString(),
+  });
+
   const accountId = job.payload.accountId ? String(job.payload.accountId) : undefined;
   if (accountId) {
     const lockAcquired = await globalQueueSafetyLock.acquireAccountLock(accountId, workerId);
@@ -303,6 +312,12 @@ export async function processNextJob(queue: JobQueueEngine, workerId: string): P
     }
 
     await queue.completeJob(job.id);
+    globalJobEventBus.emitJobEvent({
+      type: 'JOB_COMPLETED',
+      jobId: job.id,
+      name: job.name,
+      timestamp: new Date().toISOString(),
+    });
     if (job.name === 'publish.upload') {
       await globalNotificationService.emitPublishResult(job.id, true, 'Video upload completed').catch(() => {});
     }
@@ -311,6 +326,13 @@ export async function processNextJob(queue: JobQueueEngine, workerId: string): P
     const errorMsg = err instanceof Error ? err.message : String(err);
     await globalNotificationService.emitTaskFailure(job.id, errorMsg).catch(() => {});
     await queue.failJob(job.id, errorMsg);
+    globalJobEventBus.emitJobEvent({
+      type: 'JOB_FAILED',
+      jobId: job.id,
+      name: job.name,
+      message: errorMsg,
+      timestamp: new Date().toISOString(),
+    });
     return true;
   } finally {
     if (accountId) {
