@@ -34,17 +34,53 @@ export class AccountRateLimiter {
   // Map<`${accountId}:${actionType}`, timestamp[]>
   private actionTimestamps = new Map<string, number[]>();
 
-  recordAction(accountId: string, action: ActionType, timestamp = Date.now()): void {
+  recordAction(
+    accountId: string,
+    action: ActionType,
+    timestamp = Date.now()
+  ): Promise<void> & { accountId: string } {
     const key = `${accountId}:${action}`;
     const list = this.actionTimestamps.get(key) || [];
     list.push(timestamp);
     this.actionTimestamps.set(key, list);
+
+    const asyncPromise = (async () => {
+      try {
+        const { prisma } = await import('@/lib/prisma');
+        await prisma.accountActionLedger.create({
+          data: {
+            accountId,
+            actionType: action,
+            timestamp: new Date(timestamp),
+          },
+        });
+      } catch {
+        // Fallback to in-memory tracking
+      }
+    })();
+
+    return Object.assign(asyncPromise, { accountId });
   }
 
-  canPerformAction(accountId: string, action: ActionType, now = Date.now()): VelocityCheckResult {
+  canPerformAction(
+    accountId: string,
+    action: ActionType,
+    now = Date.now()
+  ): VelocityCheckResult & Promise<VelocityCheckResult> {
+    const cap = COMPLIANCE_ACTION_CAPS[action];
+    if (!cap) {
+      const syncUnknown: VelocityCheckResult = {
+        allowed: false,
+        reason: 'unknown action',
+        hourlyCount: 0,
+        dailyCount: 0,
+      };
+      const p = Promise.resolve(syncUnknown);
+      return Object.assign(p, syncUnknown);
+    }
+
     const key = `${accountId}:${action}`;
     const allTimestamps = this.actionTimestamps.get(key) || [];
-    const cap = COMPLIANCE_ACTION_CAPS[action];
 
     const oneHourAgo = now - 60 * 60 * 1000;
     const oneDayAgo = now - 24 * 60 * 60 * 1000;
@@ -52,36 +88,94 @@ export class AccountRateLimiter {
     const hourlyCount = allTimestamps.filter((t) => t > oneHourAgo).length;
     const dailyCount = allTimestamps.filter((t) => t > oneDayAgo).length;
 
+    let syncAllowed = true;
+    let syncReason: string | undefined;
+
     if (hourlyCount >= cap.maxPerHour) {
-      return {
-        allowed: false,
-        reason: `Hourly cap exceeded for ${action} (${hourlyCount}/${cap.maxPerHour})`,
-        hourlyCount,
-        dailyCount,
-      };
+      syncAllowed = false;
+      syncReason = `Hourly cap exceeded for ${action} (${hourlyCount}/${cap.maxPerHour})`;
+    } else if (dailyCount >= cap.maxPerDay) {
+      syncAllowed = false;
+      syncReason = `Daily cap exceeded for ${action} (${dailyCount}/${cap.maxPerDay})`;
     }
 
-    if (dailyCount >= cap.maxPerDay) {
-      return {
-        allowed: false,
-        reason: `Daily cap exceeded for ${action} (${dailyCount}/${cap.maxPerDay})`,
-        hourlyCount,
-        dailyCount,
-      };
-    }
-
-    return {
-      allowed: true,
+    const syncRes: VelocityCheckResult = {
+      allowed: syncAllowed,
+      reason: syncReason,
       hourlyCount,
       dailyCount,
     };
+
+    const asyncPromise = (async () => {
+      try {
+        const { prisma } = await import('@/lib/prisma');
+        const dbHourly = await prisma.accountActionLedger.count({
+          where: {
+            accountId,
+            actionType: action,
+            timestamp: { gte: new Date(oneHourAgo) },
+          },
+        });
+        const dbDaily = await prisma.accountActionLedger.count({
+          where: {
+            accountId,
+            actionType: action,
+            timestamp: { gte: new Date(oneDayAgo) },
+          },
+        });
+
+        const effectiveHourly = Math.max(hourlyCount, dbHourly);
+        const effectiveDaily = Math.max(dailyCount, dbDaily);
+
+        if (effectiveHourly >= cap.maxPerHour) {
+          return {
+            allowed: false,
+            reason: `Hourly cap exceeded for ${action} (${effectiveHourly}/${cap.maxPerHour})`,
+            hourlyCount: effectiveHourly,
+            dailyCount: effectiveDaily,
+          };
+        }
+
+        if (effectiveDaily >= cap.maxPerDay) {
+          return {
+            allowed: false,
+            reason: `Daily cap exceeded for ${action} (${effectiveDaily}/${cap.maxPerDay})`,
+            hourlyCount: effectiveHourly,
+            dailyCount: effectiveDaily,
+          };
+        }
+
+        return {
+          allowed: true,
+          hourlyCount: effectiveHourly,
+          dailyCount: effectiveDaily,
+        };
+      } catch {
+        return syncRes;
+      }
+    })();
+
+    return Object.assign(asyncPromise, syncRes);
   }
 
-  resetAccount(accountId: string): void {
+  resetAccount(accountId: string): Promise<void> & { accountId: string } {
     for (const key of this.actionTimestamps.keys()) {
       if (key.startsWith(`${accountId}:`)) {
         this.actionTimestamps.delete(key);
       }
     }
+
+    const asyncPromise = (async () => {
+      try {
+        const { prisma } = await import('@/lib/prisma');
+        await prisma.accountActionLedger.deleteMany({
+          where: { accountId },
+        });
+      } catch {
+        // Fallback to in-memory tracking
+      }
+    })();
+
+    return Object.assign(asyncPromise, { accountId });
   }
 }

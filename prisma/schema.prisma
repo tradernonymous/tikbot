@@ -259,3 +259,13 @@ model PublishJob {
 
   @@index([status, scheduledAt])
 }
+
+model AccountActionLedger {
+  id         String   @id @default(cuid())
+  accountId  String
+  actionType String
+  timestamp  DateTime @default(now())
+
+  @@index([accountId, actionType, timestamp])
+}
+
