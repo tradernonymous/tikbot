@@ -14,7 +14,15 @@ export async function POST(request: NextRequest) {
     }
 
     const config = getConfig();
-    const isValid = verifyPassword(password, config.OPERATOR_PASSWORD_HASH);
+
+    let isValid = false;
+    if (config.ADMIN_PASSWORD) {
+      // Direct comparison with Railway ADMIN_PASSWORD variable
+      isValid = password === config.ADMIN_PASSWORD;
+    } else {
+      // Scrypt hash verification
+      isValid = verifyPassword(password, config.OPERATOR_PASSWORD_HASH);
+    }
 
     if (!isValid) {
       return NextResponse.json({ error: 'Invalid master credentials' }, { status: 401 });

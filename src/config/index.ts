@@ -8,7 +8,8 @@ const configSchema = z.object({
   MASTER_ENCRYPTION_KEY: z
     .string()
     .length(64, 'MASTER_ENCRYPTION_KEY must be a 64-character hex string (32 bytes)'),
-  OPERATOR_PASSWORD_HASH: z.string().min(1, 'OPERATOR_PASSWORD_HASH is required'),
+  ADMIN_PASSWORD: z.string().optional(),
+  OPERATOR_PASSWORD_HASH: z.string().default('$scrypt$16b_salt$default_dev_hash'),
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters long'),
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
   S3_ENDPOINT: z.string().optional(),

@@ -62,7 +62,7 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="p-4 border-t border-slate-800/80">
+      <div className="p-4 border-t border-slate-800/80 space-y-2">
         <div className="bg-slate-900/40 border border-slate-800 rounded-lg p-3">
           <div className="flex items-center justify-between text-xs mb-1">
             <span className="text-slate-400">Operator</span>
@@ -70,6 +70,16 @@ export function Sidebar() {
           </div>
           <p className="text-xs font-medium text-slate-200 truncate">admin@tikbot.local</p>
         </div>
+
+        <button
+          onClick={async () => {
+            await fetch('/api/v1/auth/logout', { method: 'POST' });
+            window.location.href = '/login';
+          }}
+          className="w-full py-1.5 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-rose-400 text-xs font-medium transition-colors text-center"
+        >
+          Sign Out
+        </button>
       </div>
     </aside>
   );

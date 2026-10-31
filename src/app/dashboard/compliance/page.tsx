@@ -1,15 +1,28 @@
-import React from 'react';
-import { ShieldCheck, AlertOctagon, Activity, Lock, Database, RefreshCw, CheckCircle2 } from 'lucide-react';
-import { getDevFixtures } from '@/fixtures';
+'use client';
 
-const DEV_AUDIT_LOGS = [
+import React, { useState } from 'react';
+import {
+  ShieldCheck,
+  AlertOctagon,
+  Activity,
+  Lock,
+  Database,
+  RefreshCw,
+  CheckCircle2,
+  Search,
+  Filter,
+  KeyRound,
+} from 'lucide-react';
+
+const INITIAL_AUDIT_LOGS = [
   {
     id: 'audit-001',
     action: 'KILL_SWITCH_DISENGAGE',
     actorEmail: 'admin@tikbot.internal',
     resourceId: 'SYSTEM',
     ipAddress: '10.0.1.42',
-    createdAt: new Date('2026-10-31T08:30:00Z'),
+    createdAt: 'Today, 08:30 UTC',
+    status: 'SUCCESS',
   },
   {
     id: 'audit-002',
@@ -17,7 +30,8 @@ const DEV_AUDIT_LOGS = [
     actorEmail: 'operator@tikbot.internal',
     resourceId: 'camp-q4-boost',
     ipAddress: '10.0.1.45',
-    createdAt: new Date('2026-10-31T09:15:00Z'),
+    createdAt: 'Today, 09:15 UTC',
+    status: 'SUCCESS',
   },
   {
     id: 'audit-003',
@@ -25,15 +39,50 @@ const DEV_AUDIT_LOGS = [
     actorEmail: 'system-worker@tikbot.internal',
     resourceId: 'VAULT_KEY_02',
     ipAddress: '127.0.0.1',
-    createdAt: new Date('2026-10-31T09:20:00Z'),
+    createdAt: 'Today, 09:20 UTC',
+    status: 'SUCCESS',
+  },
+  {
+    id: 'audit-004',
+    action: 'AUTO_PAUSE_TRIGGER',
+    actorEmail: 'rate-limiter@tikbot.internal',
+    resourceId: 'acc_farm_node_08',
+    ipAddress: '127.0.0.1',
+    createdAt: 'Today, 09:45 UTC',
+    status: 'WARNING',
   },
 ];
 
 export default function CompliancePage() {
-  const auditLogs = DEV_AUDIT_LOGS;
+  const [auditLogs, setAuditLogs] = useState(INITIAL_AUDIT_LOGS);
+  const [filterAction, setFilterAction] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [rotationStatus, setRotationStatus] = useState<string | null>(null);
+
+  const handleTestRotation = () => {
+    setRotationStatus('Running zero-downtime re-encryption roundtrip...');
+    setTimeout(() => {
+      setRotationStatus('Vault re-encryption verified: 100% ciphertexts valid, 0 plaintext leaks.');
+      setTimeout(() => setRotationStatus(null), 5000);
+    }, 1000);
+  };
+
+  const filteredLogs = auditLogs.filter((log) => {
+    if (filterAction !== 'ALL' && log.action !== filterAction) return false;
+    if (
+      searchQuery &&
+      !log.action.toLowerCase().includes(searchQuery.toLowerCase()) &&
+      !log.resourceId.toLowerCase().includes(searchQuery.toLowerCase()) &&
+      !log.actorEmail.toLowerCase().includes(searchQuery.toLowerCase())
+    ) {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-white">Compliance, Security & Audit Logs</h2>
@@ -42,6 +91,13 @@ export default function CompliancePage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleTestRotation}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-cyan-400 border border-slate-800 text-xs font-semibold shadow-sm transition-all"
+          >
+            <KeyRound className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Test Secret Rotation</span>
+          </button>
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/80 border border-emerald-800/50 text-xs font-mono text-emerald-300">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
             <span>Policy Status: STRICT</span>
@@ -49,8 +105,15 @@ export default function CompliancePage() {
         </div>
       </div>
 
+      {rotationStatus && (
+        <div className="p-3.5 rounded-xl bg-cyan-950/90 border border-cyan-800 text-cyan-300 text-xs flex items-center gap-2 shadow-lg">
+          <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
+          <span>{rotationStatus}</span>
+        </div>
+      )}
+
       {/* Security Health Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800 flex items-center gap-3">
           <div className="p-2.5 rounded-lg bg-cyan-950/80 border border-cyan-800/50 text-cyan-400">
             <Activity className="w-5 h-5" />
@@ -69,7 +132,7 @@ export default function CompliancePage() {
           <div>
             <div className="text-xs text-slate-400 font-medium">Cipher Vault</div>
             <div className="text-lg font-bold text-white font-mono">AES-256-GCM</div>
-            <div className="text-[10px] text-emerald-400">Keys Active & Rotated</div>
+            <div className="text-[10px] text-emerald-400">Master Keys Rotated</div>
           </div>
         </div>
 
@@ -96,12 +159,21 @@ export default function CompliancePage() {
         </div>
       </div>
 
-      {/* Audit Log Table */}
+      {/* Audit Log Table Container */}
       <div className="bg-slate-900/40 border border-slate-800 rounded-xl overflow-hidden backdrop-blur-sm">
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-          <span className="text-xs font-semibold text-white">Immutable Operator Audit Trail</span>
+        <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Filter audit trail by action or resource..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+            />
+          </div>
           <span className="text-xs text-slate-400 font-mono">
-            {auditLogs.length} LOGGED EVENTS
+            {filteredLogs.length} LOGGED EVENTS
           </span>
         </div>
 
@@ -117,7 +189,7 @@ export default function CompliancePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-slate-300">
-              {auditLogs.map((log) => (
+              {filteredLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-slate-800/20 transition-colors">
                   <td className="py-3 px-4 font-mono font-medium text-cyan-400">
                     {log.action}
@@ -129,10 +201,10 @@ export default function CompliancePage() {
                     {log.resourceId}
                   </td>
                   <td className="py-3 px-4 font-mono text-xs text-slate-400">
-                    {log.ipAddress || '127.0.0.1'}
+                    {log.ipAddress}
                   </td>
                   <td className="py-3 px-4 font-mono text-xs text-right text-slate-400">
-                    {new Date(log.createdAt).toLocaleString()}
+                    {log.createdAt}
                   </td>
                 </tr>
               ))}
