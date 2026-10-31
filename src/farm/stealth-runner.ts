@@ -22,6 +22,15 @@ export interface ViewRunOptions {
    * though limited to 1 counted view per unique account).
    */
   identityMode?: 'unique-guest' | 'authenticated';
+  devtools?: boolean;
+  slowMo?: number;
+  proxyUrl?: string;
+  proxy?: {
+    host: string;
+    port: number;
+    username?: string;
+    password?: string;
+  } | string;
   settleDelayMs?: number;
   jitterPauseMs?: number;
   onProgress?: (completed: number, target: number, dwellSecs: number) => void;
@@ -90,10 +99,31 @@ export async function runStealthViewSession(options: ViewRunOptions): Promise<{
   const targetViews = options.targetViews ?? 1;
   const minDwell = options.minDwellSeconds ?? 8;
   const maxDwell = options.maxDwellSeconds ?? 16;
-  const chromePath = options.chromePath || '/usr/bin/google-chrome';
+  const chromePath =
+    options.chromePath ||
+    process.env.CHROME_BIN ||
+    process.env.PUPPETEER_EXECUTABLE_PATH ||
+    '/usr/bin/google-chrome';
   const headless = options.headless ?? true;
   const identityMode = options.identityMode ?? 'unique-guest';
   const baseCookies = loadSavedCookies(options.cookiesPath);
+
+  let proxyServer: string | undefined = options.proxyUrl;
+  let proxyCredentials: { username?: string; password?: string } | undefined;
+
+  if (options.proxy) {
+    if (typeof options.proxy === 'string') {
+      proxyServer = options.proxy;
+    } else {
+      proxyServer = `${options.proxy.host}:${options.proxy.port}`;
+      if (options.proxy.username || options.proxy.password) {
+        proxyCredentials = {
+          username: options.proxy.username,
+          password: options.proxy.password,
+        };
+      }
+    }
+  }
 
   let successfulViews = 0;
   let failedViews = 0;
@@ -120,20 +150,28 @@ export async function runStealthViewSession(options: ViewRunOptions): Promise<{
   try {
     // Launch shared master browser instance once (Browser Context Pooling)
     console.log(`[StealthRunner] Initializing shared master Chrome engine...`);
+    const launchArgs = [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--disable-gpu',
+      '--disable-blink-features=AutomationControlled',
+      '--window-size=1280,800',
+    ];
+
+    if (proxyServer) {
+      launchArgs.push(`--proxy-server=${proxyServer}`);
+    }
+
     masterBrowser = await puppeteer.launch({
       executablePath: chromePath,
       headless: headless as any,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--disable-gpu',
-        '--disable-blink-features=AutomationControlled',
-        '--window-size=1280,800',
-      ],
+      devtools: options.devtools ?? false,
+      slowMo: options.slowMo ?? 0,
+      args: launchArgs,
     });
 
     for (let i = 1; i <= targetViews; i++) {
@@ -147,6 +185,14 @@ export async function runStealthViewSession(options: ViewRunOptions): Promise<{
         // Create ephemeral incognito context per view (zero session bleed, ultra-fast)
         context = await masterBrowser.createBrowserContext();
         const page = await context.newPage();
+
+        if (proxyCredentials?.username && proxyCredentials?.password && typeof page.authenticate === 'function') {
+          await page.authenticate({
+            username: proxyCredentials.username,
+            password: proxyCredentials.password,
+          });
+        }
+
         await page.setViewport({ width: fp.viewport.width, height: fp.viewport.height });
         await page.setUserAgent(fp.userAgent);
 
