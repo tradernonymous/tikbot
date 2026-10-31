@@ -6,6 +6,8 @@ import { AlertTriangle, RefreshCw } from 'lucide-react';
 interface Props {
   children: ReactNode;
   fallbackTitle?: string;
+  sectionName?: string;
+  fallbackError?: Error | null;
   onReset?: () => void;
 }
 
@@ -17,7 +19,10 @@ interface State {
 export class SectionErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = {
+      hasError: !!props.fallbackError,
+      error: props.fallbackError || null,
+    };
   }
 
   static getDerivedStateFromError(error: Error): State {
@@ -44,7 +49,7 @@ export class SectionErrorBoundary extends Component<Props, State> {
           <div className="flex items-center gap-3">
             <AlertTriangle className="h-5 w-5 text-red-400" aria-hidden="true" />
             <h3 className="font-semibold text-red-200">
-              {this.props.fallbackTitle || 'Section Failed to Render'}
+              {this.props.sectionName ? `${this.props.sectionName} Error` : (this.props.fallbackTitle || 'Section Failed to Render')}
             </h3>
           </div>
           <p className="mt-2 text-sm text-slate-400">

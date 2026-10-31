@@ -7,6 +7,7 @@ export interface EmptyStateProps {
   title: string;
   description: string;
   actionLabel?: string;
+  actionText?: string;
   actionHref?: string;
   onAction?: () => void;
   className?: string;
@@ -17,10 +18,13 @@ export function EmptyState({
   title,
   description,
   actionLabel,
+  actionText,
   actionHref,
   onAction,
   className = '',
 }: EmptyStateProps) {
+  const resolvedLabel = actionLabel || actionText;
+
   return (
     <div
       role="region"
@@ -34,14 +38,14 @@ export function EmptyState({
       <h3 className="mt-4 text-sm font-semibold tracking-wide text-slate-100">{title}</h3>
       <p className="mt-2 max-w-sm text-xs text-slate-400">{description}</p>
 
-      {actionLabel && (
+      {resolvedLabel && (
         <div className="mt-6">
           {actionHref ? (
             <Link
               href={actionHref}
               className="inline-flex items-center rounded-lg bg-cyan-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-400"
             >
-              {actionLabel}
+              {resolvedLabel}
             </Link>
           ) : (
             <button
@@ -49,7 +53,7 @@ export function EmptyState({
               type="button"
               className="inline-flex items-center rounded-lg bg-cyan-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-400"
             >
-              {actionLabel}
+              {resolvedLabel}
             </button>
           )}
         </div>
