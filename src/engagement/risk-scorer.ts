@@ -1,11 +1,11 @@
-import { AccountLifecycleState } from '../farm/account-lifecycle';
+import { AccountState } from '../farm/account-lifecycle';
 
 export type RiskTier = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
 export interface CampaignRiskAssessmentInput {
   totalActions: number;
   targetDurationHours: number;
-  accountStates: AccountLifecycleState[];
+  accountStates: AccountState[];
   proxiesAssigned: number;
   hasManualApproval: boolean;
 }

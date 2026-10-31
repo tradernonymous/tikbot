@@ -8,7 +8,7 @@ describe('EngagementRiskScorer', () => {
     const assessment = scorer.assessCampaign({
       totalActions: 20,
       targetDurationHours: 4,
-      accountStates: ['WARMED', 'WARMED', 'ACTIVE'],
+      accountStates: ['WARMING', 'ACTIVE', 'ACTIVE'],
       proxiesAssigned: 3,
       hasManualApproval: true,
     });

@@ -2,8 +2,35 @@ import React from 'react';
 import { ShieldCheck, AlertOctagon, Activity, Lock, Database, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { getDevFixtures } from '@/fixtures';
 
+const DEV_AUDIT_LOGS = [
+  {
+    id: 'audit-001',
+    action: 'KILL_SWITCH_DISENGAGE',
+    actorEmail: 'admin@tikbot.internal',
+    resourceId: 'SYSTEM',
+    ipAddress: '10.0.1.42',
+    createdAt: new Date('2026-10-31T08:30:00Z'),
+  },
+  {
+    id: 'audit-002',
+    action: 'APPROVE_CAMPAIGN',
+    actorEmail: 'operator@tikbot.internal',
+    resourceId: 'camp-q4-boost',
+    ipAddress: '10.0.1.45',
+    createdAt: new Date('2026-10-31T09:15:00Z'),
+  },
+  {
+    id: 'audit-003',
+    action: 'ROTATE_SECRET_VAULT',
+    actorEmail: 'system-worker@tikbot.internal',
+    resourceId: 'VAULT_KEY_02',
+    ipAddress: '127.0.0.1',
+    createdAt: new Date('2026-10-31T09:20:00Z'),
+  },
+];
+
 export default function CompliancePage() {
-  const fixtures = getDevFixtures();
+  const auditLogs = DEV_AUDIT_LOGS;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -74,7 +101,7 @@ export default function CompliancePage() {
         <div className="p-4 border-b border-slate-800 flex items-center justify-between">
           <span className="text-xs font-semibold text-white">Immutable Operator Audit Trail</span>
           <span className="text-xs text-slate-400 font-mono">
-            {fixtures.auditLogs.length} LOGGED EVENTS
+            {auditLogs.length} LOGGED EVENTS
           </span>
         </div>
 
@@ -90,7 +117,7 @@ export default function CompliancePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-slate-300">
-              {fixtures.auditLogs.map((log) => (
+              {auditLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-slate-800/20 transition-colors">
                   <td className="py-3 px-4 font-mono font-medium text-cyan-400">
                     {log.action}

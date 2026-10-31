@@ -3,8 +3,30 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { getDevFixtures } from '@/fixtures';
 import { Calendar, UploadCloud, Video, Clock, Check, X, Film, Folder } from 'lucide-react';
 
+const DEV_MEDIA_ASSETS = [
+  { id: 'asset-1', title: 'Viral Hook 01', size: '14.2 MB' },
+  { id: 'asset-2', title: 'Product Showcase A', size: '28.5 MB' },
+  { id: 'asset-3', title: 'Customer Interview Teaser', size: '8.9 MB' },
+];
+
+const DEV_PUBLISH_JOBS = [
+  {
+    id: 'pub-001',
+    title: '3 productivity habits you need in 2026 #focus #hustle',
+    scheduledAt: new Date('2026-11-01T14:00:00Z'),
+    status: 'PENDING_APPROVAL',
+  },
+  {
+    id: 'pub-002',
+    title: 'Behind the scenes: Building viral AI dashboards #tech #saas',
+    scheduledAt: new Date('2026-11-01T18:00:00Z'),
+    status: 'READY',
+  },
+];
+
 export default function PublishingPage() {
-  const fixtures = getDevFixtures();
+  const mediaAssets = DEV_MEDIA_ASSETS;
+  const publishJobs = DEV_PUBLISH_JOBS;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -35,7 +57,7 @@ export default function PublishingPage() {
           </div>
           <div>
             <div className="text-xs text-slate-400 font-medium">Ready Assets</div>
-            <div className="text-lg font-bold text-white font-mono">{fixtures.mediaAssets.length}</div>
+            <div className="text-lg font-bold text-white font-mono">{mediaAssets.length}</div>
           </div>
         </div>
 
@@ -55,7 +77,7 @@ export default function PublishingPage() {
           </div>
           <div>
             <div className="text-xs text-slate-400 font-medium">Queued Posts</div>
-            <div className="text-lg font-bold text-white font-mono">{fixtures.publishJobs.length}</div>
+            <div className="text-lg font-bold text-white font-mono">{publishJobs.length}</div>
           </div>
         </div>
 
@@ -75,7 +97,7 @@ export default function PublishingPage() {
         <div className="p-4 border-b border-slate-800 flex items-center justify-between">
           <span className="text-xs font-semibold text-white">Publishing Schedule & Approval Queue</span>
           <span className="text-xs text-slate-400 font-mono">
-            {fixtures.publishJobs.length} SLOTS PLANNED
+            {publishJobs.length} SLOTS PLANNED
           </span>
         </div>
 
@@ -91,7 +113,7 @@ export default function PublishingPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-slate-300">
-              {fixtures.publishJobs.map((job) => (
+              {publishJobs.map((job) => (
                 <tr key={job.id} className="hover:bg-slate-800/20 transition-colors">
                   <td className="py-3 px-4 font-medium text-white max-w-[280px] truncate">
                     {job.title}
