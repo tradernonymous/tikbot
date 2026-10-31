@@ -78,7 +78,7 @@ describe('Integrated System Verification — Upgraded Security & Persistence Flo
 
   it('Flow 2: Sensitive system settings are encrypted with AES-256-GCM and never returned in plaintext', async () => {
     const validToken = createSessionToken(
-      { userId: 'admin', email: 'operator@tikbot.local', role: 'ADMIN' },
+      { userId: 'admin', email: 'operator@tikbot.local', role: 'OPERATOR' },
       sessionSecret,
       8 * 3600
     );
