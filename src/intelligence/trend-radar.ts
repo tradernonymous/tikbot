@@ -54,3 +54,21 @@ export function analyzeHashtagCoOccurrence(
     .map(([tag, count]) => ({ tag, count }))
     .sort((a, b) => b.count - a.count);
 }
+
+export type SoundLifecyclePhase = 'EMERGING' | 'RISING' | 'PEAK' | 'DECLINING';
+
+export function detectSoundLifecycle(
+  velocity: number,
+  sampleSize: number
+): SoundLifecyclePhase {
+  if (sampleSize < 10) {
+    return 'EMERGING';
+  }
+  if (velocity > 15) {
+    return 'RISING';
+  }
+  if (velocity < 0) {
+    return 'DECLINING';
+  }
+  return 'PEAK';
+}
