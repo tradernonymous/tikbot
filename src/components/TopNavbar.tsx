@@ -19,13 +19,18 @@ import {
   Users,
   Shield,
   Trash2,
+  Columns,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useOperations } from '@/context/OperationsContext';
+import { useUi } from '@/context/UiContext';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { CommandPalette, CommandPaletteItem } from '@/components/CommandPalette';
+import { ContextCarriedChip } from '@/components/ContextCarriedChip';
+import { ShortcutCheatSheetModal } from '@/components/ShortcutCheatSheetModal';
+import { getGlobalUndoStack } from '@/sync/undo-stack';
 
 export function TopNavbar() {
   const pathname = usePathname();
@@ -41,6 +46,7 @@ export function TopNavbar() {
     publishJobs,
     researchedPosts,
   } = useOperations();
+  const { splitViewOpen, openSplitView, closeSplitView } = useUi();
 
   const [loading, setLoading] = useState<boolean>(false);
   const [showSearchModal, setShowSearchModal] = useState<boolean>(false);
@@ -48,6 +54,7 @@ export function TopNavbar() {
   const [paletteIndex, setPaletteIndex] = useState<number>(0);
   const [showQuickActions, setShowQuickActions] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false);
   const [unreadCount, setUnreadCount] = useState<number>(0);
 
   useEffect(() => {
@@ -66,21 +73,99 @@ export function TopNavbar() {
     return () => clearInterval(interval);
   }, []);
 
-  // Keyboard shortcut Cmd+K / Ctrl+K
+  // Keyboard shortcuts (S2.7): Cmd+K, ?, Cmd+Z, and g+<key> jumps
   useEffect(() => {
+    let gTimer: NodeJS.Timeout | null = null;
+    let gPressed = false;
+
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable);
+
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         setShowSearchModal((prev) => !prev);
-      } else if (e.key === 'Escape') {
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        if (!isInput) {
+          e.preventDefault();
+          getGlobalUndoStack().undo().catch(() => {});
+          return;
+        }
+      }
+
+      if (e.key === 'Escape') {
         setShowSearchModal(false);
         setShowQuickActions(false);
         setShowNotifications(false);
+        setShowShortcutsModal(false);
+        return;
+      }
+
+      if (!isInput) {
+        if (e.key === '?') {
+          e.preventDefault();
+          setShowShortcutsModal((prev) => !prev);
+          return;
+        }
+
+        if (e.key === 'g' && !gPressed) {
+          gPressed = true;
+          if (gTimer) clearTimeout(gTimer);
+          gTimer = setTimeout(() => {
+            gPressed = false;
+          }, 1000);
+          return;
+        }
+
+        if (gPressed) {
+          gPressed = false;
+          if (gTimer) clearTimeout(gTimer);
+          switch (e.key) {
+            case 'o':
+              router.push('/dashboard');
+              break;
+            case 't':
+              router.push('/dashboard/trends');
+              break;
+            case 'h':
+              router.push('/dashboard/hooks');
+              break;
+            case 'i':
+              router.push('/dashboard/inbox');
+              break;
+            case 'c':
+              router.push('/dashboard/calendar');
+              break;
+            case 'p':
+              router.push('/dashboard/composer');
+              break;
+            case 'm':
+              router.push('/dashboard/media');
+              break;
+            case 'a':
+              router.push('/dashboard/accounts');
+              break;
+            case 'r':
+              router.push('/dashboard/reports');
+              break;
+          }
+        }
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      if (gTimer) clearTimeout(gTimer);
+    };
+  }, [router]);
 
   async function handleToggleKillSwitch() {
     if (!killSwitchActive) {
@@ -114,6 +199,32 @@ export function TopNavbar() {
     { id: 'action-killswitch', title: killSwitchActive ? 'Resume Operations' : 'Emergency Kill Switch', category: 'action', href: '/dashboard/compliance', onExecute: handleToggleKillSwitch },
     { id: 'action-launch-task', title: 'Launch Farm Task', category: 'action', href: '/dashboard/panel' },
     { id: 'action-analyze-post', title: 'Analyze TikTok Video', category: 'action', href: '/dashboard/research' },
+
+    // Context Jumps (S2.3)
+    {
+      id: 'jump-outlier-composer',
+      title: 'Jump: Outlier Viral Hook -> Composer',
+      subtitle: 'Prefill Composer with top viral hook pattern',
+      category: 'jump',
+      href: '/dashboard/composer?carriedFrom=outlier&topic=High%20Retention%20Hook',
+      carriedContext: { source: 'outlier', metadata: { topic: 'High Retention Hook' } },
+    },
+    {
+      id: 'jump-trend-calendar',
+      title: 'Jump: Rising Trend -> Calendar Slot',
+      subtitle: 'Schedule next free high-velocity slot',
+      category: 'jump',
+      href: '/dashboard/calendar?slot=next&carriedSource=trend',
+      carriedContext: { source: 'trend', metadata: { slot: 'next' } },
+    },
+    {
+      id: 'jump-hook-ab',
+      title: 'Jump: Best Hook -> A/B Test Suite',
+      subtitle: 'Spin up variant test against baseline',
+      category: 'jump',
+      href: '/dashboard/hooks?tab=ab-tests&carriedSource=hook',
+      carriedContext: { source: 'hook', metadata: { tab: 'ab-tests' } },
+    },
 
     // Entities - Accounts
     ...accounts.map((acc) => ({
@@ -167,6 +278,8 @@ export function TopNavbar() {
               <span>STRICT COMPLIANCE</span>
             </div>
           )}
+
+          <ContextCarriedChip />
         </div>
 
         {/* Center: Command Palette Trigger */}
@@ -244,6 +357,20 @@ export function TopNavbar() {
             )}
           </div>
 
+          {/* Split View Toggle (S2.5) */}
+          <button
+            onClick={() => (splitViewOpen ? closeSplitView() : openSplitView('/dashboard/composer'))}
+            title={splitViewOpen ? 'Close Split View' : 'Open Split View'}
+            aria-label={splitViewOpen ? 'Close Split View' : 'Open Split View'}
+            className={`p-2 rounded-lg border transition-all ${
+              splitViewOpen
+                ? 'bg-cyan-950/80 border-cyan-700 text-cyan-300'
+                : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+            }`}
+          >
+            <Columns className="w-3.5 h-3.5" />
+          </button>
+
           {/* Activity / Notifications Bell */}
           <div className="relative">
             <button
@@ -306,6 +433,12 @@ export function TopNavbar() {
         onSearchChange={setSearchQuery}
         selectedIndex={paletteIndex}
         onSelectedIndexChange={setPaletteIndex}
+      />
+
+      {/* S2.7 Keyboard Shortcut Cheat Sheet Modal (?) */}
+      <ShortcutCheatSheetModal
+        isOpen={showShortcutsModal}
+        onClose={() => setShowShortcutsModal(false)}
       />
     </>
   );

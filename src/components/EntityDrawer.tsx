@@ -390,7 +390,64 @@ export function EntityDrawer({
       </div>
 
       {/* Body Content */}
-      <div className="p-5 flex-1 overflow-y-auto">{renderContent()}</div>
+      <div className="p-5 flex-1 overflow-y-auto space-y-6">
+        {renderContent()}
+
+        {/* S2.4 Related-Entity Rail: Relationship Map */}
+        <div className="border-t border-slate-800 pt-4">
+          <div className="flex items-center justify-between mb-3">
+            <h5 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              Relationship Map
+            </h5>
+            <span className="text-[10px] text-cyan-400 font-mono">1-Click Jump</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+            <Link
+              href={`/dashboard/accounts?focus=${data.accountId || data.id || ''}`}
+              className="p-2 rounded bg-slate-950/80 border border-slate-800 hover:border-cyan-500/50 hover:bg-cyan-950/20 text-slate-300 hover:text-cyan-300 flex items-center justify-between transition-colors"
+            >
+              <div className="flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Account</span>
+              </div>
+              <ArrowRight className="w-3 h-3 text-slate-500" />
+            </Link>
+
+            <Link
+              href={`/dashboard/campaigns?focus=${data.campaignId || data.id || ''}`}
+              className="p-2 rounded bg-slate-950/80 border border-slate-800 hover:border-amber-500/50 hover:bg-amber-950/20 text-slate-300 hover:text-amber-300 flex items-center justify-between transition-colors"
+            >
+              <div className="flex items-center gap-1.5">
+                <Flame className="w-3.5 h-3.5 text-amber-400" />
+                <span>Campaigns</span>
+              </div>
+              <ArrowRight className="w-3 h-3 text-slate-500" />
+            </Link>
+
+            <Link
+              href={`/dashboard/publishing?focus=${data.jobId || data.id || ''}`}
+              className="p-2 rounded bg-slate-950/80 border border-slate-800 hover:border-emerald-500/50 hover:bg-emerald-950/20 text-slate-300 hover:text-emerald-300 flex items-center justify-between transition-colors"
+            >
+              <div className="flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Jobs</span>
+              </div>
+              <ArrowRight className="w-3 h-3 text-slate-500" />
+            </Link>
+
+            <Link
+              href={`/dashboard/reports?focus=${data.id || ''}`}
+              className="p-2 rounded bg-slate-950/80 border border-slate-800 hover:border-purple-500/50 hover:bg-purple-950/20 text-slate-300 hover:text-purple-300 flex items-center justify-between transition-colors"
+            >
+              <div className="flex items-center gap-1.5">
+                <Activity className="w-3.5 h-3.5 text-purple-400" />
+                <span>Metrics</span>
+              </div>
+              <ArrowRight className="w-3 h-3 text-slate-500" />
+            </Link>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

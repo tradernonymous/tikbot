@@ -47,4 +47,40 @@ describe('F1.9 Command Palette v2', () => {
     expect(html).toContain('aria-selected="true"');
     expect(html).toContain('Approve pending campaigns');
   });
+
+  it('filters and renders context jump items carrying metadata', () => {
+    const jumpItems: CommandPaletteItem[] = [
+      ...sampleItems,
+      {
+        id: 'jump-outlier-composer',
+        title: 'Jump: Outlier #42 -> Composer',
+        subtitle: 'Carry hook: Stop scrolling',
+        category: 'jump',
+        href: '/dashboard/composer?carriedFrom=outlier',
+        carriedContext: {
+          source: 'outlier',
+          metadata: { hook: 'Stop scrolling' },
+        },
+      },
+    ];
+
+    const results = filterCommandPaletteItems(jumpItems, 'jump');
+    expect(results).toHaveLength(1);
+    expect(results[0].category).toBe('jump');
+    expect(results[0].carriedContext?.source).toBe('outlier');
+
+    const html = renderToString(
+      <CommandPalette
+        isOpen={true}
+        onClose={vi.fn()}
+        onSelect={vi.fn()}
+        items={jumpItems}
+        searchQuery="jump"
+        onSearchChange={vi.fn()}
+        selectedIndex={0}
+      />
+    );
+    expect(html).toContain('Jump: Outlier #42 -&gt; Composer');
+    expect(html).toContain('Carry hook: Stop scrolling');
+  });
 });

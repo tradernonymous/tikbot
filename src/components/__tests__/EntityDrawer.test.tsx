@@ -141,4 +141,25 @@ describe('F1.7 Shared EntityDrawer Component', () => {
     expect(html).toContain('8.4x');
     expect(html).toContain('Launch Campaign From Post');
   });
+
+  it('renders the S2.4 related-entity relationship rail with interactive jump nodes', () => {
+    const html = renderToString(
+      <EntityDrawer
+        isOpen={true}
+        onClose={vi.fn()}
+        entityType="account"
+        data={{
+          id: 'acc-1',
+          username: 'growth_node_alpha',
+          platform: 'TIKTOK',
+          status: 'ACTIVE',
+        }}
+      />
+    );
+
+    expect(html).toContain('Relationship Map');
+    expect(html).toContain('Campaigns');
+    expect(html).toContain('Jobs');
+    expect(html).toContain('Metrics');
+  });
 });

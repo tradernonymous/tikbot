@@ -3,13 +3,18 @@
 import React, { useEffect, useRef } from 'react';
 import { Search, X, Command, Play, Flame, Calendar, Users, Radio, ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useSessionContext } from '@/context/SessionContext';
 
 export interface CommandPaletteItem {
   id: string;
   title: string;
   subtitle?: string;
-  category: 'page' | 'action' | 'entity' | 'recent';
+  category: 'page' | 'action' | 'entity' | 'recent' | 'jump';
   href: string;
+  carriedContext?: {
+    source: string;
+    metadata?: Record<string, any>;
+  };
   icon?: React.ComponentType<{ className?: string }>;
   onExecute?: () => void;
 }
@@ -52,6 +57,7 @@ export function CommandPalette({
 }: CommandPaletteProps) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const { setCarriedContext } = useSessionContext();
   const filtered = filterCommandPaletteItems(items, searchQuery);
 
   useEffect(() => {
@@ -63,6 +69,9 @@ export function CommandPalette({
   if (!isOpen) return null;
 
   const handleSelect = (item: CommandPaletteItem) => {
+    if (item.carriedContext) {
+      setCarriedContext(item.carriedContext.source, item.carriedContext.metadata);
+    }
     if (onSelect) {
       onSelect(item);
     } else {
@@ -159,6 +168,8 @@ export function CommandPalette({
                           ? 'bg-amber-950/80 text-amber-400 border border-amber-800/40'
                           : item.category === 'entity'
                           ? 'bg-cyan-950/80 text-cyan-400 border border-cyan-800/40'
+                          : item.category === 'jump'
+                          ? 'bg-purple-950/80 text-purple-300 border border-purple-800/40'
                           : 'bg-slate-800 text-slate-400'
                       }`}
                     >

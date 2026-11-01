@@ -5,9 +5,11 @@ import { verifySessionToken, readSessionTokenFromCookies } from '@/security/auth
 import { Sidebar } from '@/components/Sidebar';
 import { TopNavbar } from '@/components/TopNavbar';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { SplitViewPane } from '@/components/SplitViewPane';
 import { OperationsProvider } from '@/context/OperationsContext';
 import { UiProvider } from '@/context/UiContext';
 import { NotificationsProvider } from '@/context/NotificationsContext';
+import { SessionContextProvider } from '@/context/SessionContext';
 import { ToastProvider } from '@/components/Toast';
 
 export default async function DashboardLayout({
@@ -33,21 +35,26 @@ export default async function DashboardLayout({
   return (
     <UiProvider>
       <NotificationsProvider>
-        <OperationsProvider>
-          <ToastProvider>
-            <div className="flex min-h-screen bg-slate-950 text-slate-100">
-              <Sidebar />
-              <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                <TopNavbar />
-                <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto p-6 md:p-8 outline-none">
-                  <ErrorBoundary>
-                    {children}
-                  </ErrorBoundary>
-                </main>
+        <SessionContextProvider>
+          <OperationsProvider>
+            <ToastProvider>
+              <div className="flex min-h-screen bg-slate-950 text-slate-100">
+                <Sidebar />
+                <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                  <TopNavbar />
+                  <div className="flex-1 flex min-w-0 overflow-hidden">
+                    <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto p-6 md:p-8 outline-none">
+                      <ErrorBoundary>
+                        {children}
+                      </ErrorBoundary>
+                    </main>
+                    <SplitViewPane />
+                  </div>
+                </div>
               </div>
-            </div>
-          </ToastProvider>
-        </OperationsProvider>
+            </ToastProvider>
+          </OperationsProvider>
+        </SessionContextProvider>
       </NotificationsProvider>
     </UiProvider>
   );
