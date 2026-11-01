@@ -81,7 +81,7 @@ export function Sidebar({ serverCounts }: { serverCounts?: SidebarCounts }) {
           badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
         },
         {
-          name: 'Farm Accounts',
+          name: 'Accounts',
           href: '/dashboard/accounts',
           icon: Users,
           badge: `${activeAccounts} live`,
@@ -102,8 +102,27 @@ export function Sidebar({ serverCounts }: { serverCounts?: SidebarCounts }) {
           badgeColor: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20',
         },
         {
-          name: 'Farm Services & Launch',
+          name: 'Launch Panel',
           href: '/dashboard/panel',
+          icon: Layers,
+          badge: runningTasks > 0 ? `${runningTasks} active` : 'Ready',
+          badgeColor: runningTasks > 0 ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 animate-pulse' : 'bg-slate-800 text-slate-400 border-slate-700',
+        },
+      ],
+    },
+    {
+      group: 'Farm',
+      items: [
+        {
+          name: 'Farm Accounts',
+          href: '/dashboard/farm/accounts',
+          icon: Users,
+          badge: `${activeAccounts} live`,
+          badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+        },
+        {
+          name: 'Farm Services',
+          href: '/dashboard/farm/services',
           icon: Layers,
           badge: runningTasks > 0 ? `${runningTasks} active` : 'Ready',
           badgeColor: runningTasks > 0 ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 animate-pulse' : 'bg-slate-800 text-slate-400 border-slate-700',

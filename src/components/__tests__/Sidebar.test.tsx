@@ -50,6 +50,14 @@ describe('F1.8 Server-Backed Sidebar Badges', () => {
     expect(html).toContain('Strict'); // Default compliance badge
   });
 
+  it('renders Farm navigation group with Farm Accounts and Farm Services links', () => {
+    const html = renderToString(<Sidebar />);
+    expect(html).toContain('href="/dashboard/farm/accounts"');
+    expect(html).toContain('href="/dashboard/farm/services"');
+    expect(html).toContain('Farm Accounts');
+    expect(html).toContain('Farm Services');
+  });
+
   it('W1.11 renders restructured navigation groups (Operate, Intelligence, Content, System)', () => {
     const counts = {
       total: 0,
