@@ -5,10 +5,12 @@ import {
   MockDriver,
 } from '../drivers';
 import { ContentPublisher } from '../publisher';
+import { resetVariantIntegrityRegistryForTesting } from '../variant-integrity-guard';
 
 describe('Publish Uploader Drivers (R3.3)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetVariantIntegrityRegistryForTesting();
   });
 
   describe('OfficialDriver (TikTok Content Posting API)', () => {

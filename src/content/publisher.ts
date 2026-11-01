@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { KillSwitchManager, globalKillSwitch } from '../security/kill-switch';
+import {
+  computeVariantFingerprint,
+  assertVariantIntegrity,
+  registerPublishedVariant,
+} from './variant-integrity-guard';
 
 export interface PublishRequest {
   accountId: string;
@@ -7,6 +12,7 @@ export interface PublishRequest {
   caption: string;
   hasValidSession: boolean;
   scheduledTime?: Date;
+  fingerprintSha256?: string;
 }
 
 export interface PublishResult {
@@ -59,7 +65,20 @@ export class ContentPublisher {
       throw new Error(`Account ${req.accountId} does not have an active authenticated session. Re-login required.`);
     }
 
+    // A3.7 Variant integrity guard
+    const fingerprint = req.fingerprintSha256 || computeVariantFingerprint(req.mediaPath);
+    assertVariantIntegrity(
+      { accountId: req.accountId, fingerprintSha256: fingerprint },
+      { throwOnBlock: true }
+    );
+
     const result = await this.uploaderDriver(req);
+
+    registerPublishedVariant({
+      accountId: req.accountId,
+      fingerprintSha256: fingerprint,
+      jobId: result.publishedVideoId || randomUUID(),
+    });
 
     this.auditTrail.push({
       id: randomUUID(),
