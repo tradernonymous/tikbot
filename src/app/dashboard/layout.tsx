@@ -6,6 +6,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { TopNavbar } from '@/components/TopNavbar';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { SplitViewPane } from '@/components/SplitViewPane';
+import { DashboardMobileActionCenterWrapper } from '@/components/DashboardMobileActionCenterWrapper';
 import { OperationsProvider } from '@/context/OperationsContext';
 import { UiProvider } from '@/context/UiContext';
 import { NotificationsProvider } from '@/context/NotificationsContext';
@@ -51,6 +52,7 @@ export default async function DashboardLayout({
                     <SplitViewPane />
                   </div>
                 </div>
+                <DashboardMobileActionCenterWrapper />
               </div>
             </ToastProvider>
           </OperationsProvider>
