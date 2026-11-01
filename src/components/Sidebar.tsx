@@ -12,6 +12,16 @@ import {
   Layers,
   Settings,
   ShieldCheck,
+  TrendingUp,
+  Sparkles,
+  Target,
+  UserCheck,
+  Radio,
+  CalendarDays,
+  PenSquare,
+  Video,
+  Inbox,
+  BarChart3,
 } from 'lucide-react';
 import { useOperations } from '@/context/OperationsContext';
 
@@ -59,60 +69,130 @@ export function Sidebar({ serverCounts }: { serverCounts?: SidebarCounts }) {
   const runningTasks = farmTasks.filter((t) => t.status === 'RUNNING').length;
   const activeAccounts = accounts.filter((a) => a.status === 'ACTIVE').length;
 
-  const navigation = [
+  const navGroups = [
     {
-      name: 'Overview',
-      href: '/dashboard',
-      icon: LayoutDashboard,
-      badge: counts.total > 0 ? `${counts.total} alerts` : undefined,
-      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+      group: 'Operate',
+      items: [
+        {
+          name: 'Overview',
+          href: '/dashboard',
+          icon: LayoutDashboard,
+          badge: counts.total > 0 ? `${counts.total} alerts` : undefined,
+          badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+        },
+        {
+          name: 'Farm Accounts',
+          href: '/dashboard/accounts',
+          icon: Users,
+          badge: `${activeAccounts} live`,
+          badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+        },
+        {
+          name: 'Engagement Campaigns',
+          href: '/dashboard/campaigns',
+          icon: Flame,
+          badge: counts.approvals > 0 ? `${counts.approvals} pending` : undefined,
+          badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+        },
+        {
+          name: 'Content & Publishing',
+          href: '/dashboard/publishing',
+          icon: Calendar,
+          badge: publishJobs.length > 0 ? `${publishJobs.length} slots` : undefined,
+          badgeColor: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20',
+        },
+        {
+          name: 'Farm Services & Launch',
+          href: '/dashboard/panel',
+          icon: Layers,
+          badge: runningTasks > 0 ? `${runningTasks} active` : 'Ready',
+          badgeColor: runningTasks > 0 ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 animate-pulse' : 'bg-slate-800 text-slate-400 border-slate-700',
+        },
+      ],
     },
     {
-      name: 'Research Intelligence',
-      href: '/dashboard/research',
-      icon: Search,
-      badge: counts.research > 0 ? `${counts.research} alerts` : undefined,
-      badgeColor: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+      group: 'Intelligence',
+      items: [
+        {
+          name: 'Research Intelligence',
+          href: '/dashboard/research',
+          icon: Search,
+          badge: counts.research > 0 ? `${counts.research} alerts` : undefined,
+          badgeColor: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+        },
+        {
+          name: 'Trends',
+          href: '/dashboard/trends',
+          icon: TrendingUp,
+        },
+        {
+          name: 'Hook Lab',
+          href: '/dashboard/hooks',
+          icon: Sparkles,
+        },
+        {
+          name: 'Competitors',
+          href: '/dashboard/competitors',
+          icon: Target,
+        },
+        {
+          name: 'Creators',
+          href: '/dashboard/creators',
+          icon: UserCheck,
+        },
+        {
+          name: 'Live Intel',
+          href: '/dashboard/live',
+          icon: Radio,
+        },
+      ],
     },
     {
-      name: 'Farm Accounts',
-      href: '/dashboard/accounts',
-      icon: Users,
-      badge: `${activeAccounts} live`,
-      badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+      group: 'Content',
+      items: [
+        {
+          name: 'Calendar',
+          href: '/dashboard/calendar',
+          icon: CalendarDays,
+        },
+        {
+          name: 'Composer',
+          href: '/dashboard/composer',
+          icon: PenSquare,
+        },
+        {
+          name: 'Media',
+          href: '/dashboard/media',
+          icon: Video,
+        },
+        {
+          name: 'Inbox',
+          href: '/dashboard/inbox',
+          icon: Inbox,
+        },
+      ],
     },
     {
-      name: 'Engagement Campaigns',
-      href: '/dashboard/campaigns',
-      icon: Flame,
-      badge: counts.approvals > 0 ? `${counts.approvals} pending` : undefined,
-      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-    },
-    {
-      name: 'Content & Publishing',
-      href: '/dashboard/publishing',
-      icon: Calendar,
-      badge: publishJobs.length > 0 ? `${publishJobs.length} slots` : undefined,
-      badgeColor: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20',
-    },
-    {
-      name: 'Farm Services & Launch',
-      href: '/dashboard/panel',
-      icon: Layers,
-      badge: runningTasks > 0 ? `${runningTasks} active` : 'Ready',
-      badgeColor: runningTasks > 0 ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 animate-pulse' : 'bg-slate-800 text-slate-400 border-slate-700',
-    },
-    {
-      name: 'Compliance & Audit',
-      href: '/dashboard/compliance',
-      icon: ShieldCheck,
-      badge: counts.incidents > 0 ? `${counts.incidents} alerts` : 'Strict',
-      badgeColor: counts.incidents > 0 ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    },
-    {
-      name: 'Settings',
-      href: '/dashboard/settings',
-      icon: Settings,
+      group: 'System',
+      items: [
+        {
+          name: 'Compliance & Audit',
+          href: '/dashboard/compliance',
+          icon: ShieldCheck,
+          badge: counts.incidents > 0 ? `${counts.incidents} alerts` : 'Strict',
+          badgeColor: counts.incidents > 0 ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+        },
+        {
+          name: 'Reports',
+          href: '/dashboard/reports',
+          icon: BarChart3,
+        },
+        {
+          name: 'Settings',
+          href: '/dashboard/settings',
+          icon: Settings,
+        },
+      ],
     },
   ];
 
@@ -128,33 +208,42 @@ export function Sidebar({ serverCounts }: { serverCounts?: SidebarCounts }) {
         </div>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1">
-        {navigation.map((item) => {
-          const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
-          const Icon = item.icon;
+      <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
+        {navGroups.map((section) => (
+          <div key={section.group} className="space-y-1">
+            <h2 className="px-3 text-[10px] font-mono uppercase tracking-wider text-slate-500 font-semibold">
+              {section.group}
+            </h2>
+            <div className="space-y-0.5">
+              {section.items.map((item) => {
+                const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+                const Icon = item.icon;
 
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                isActive
-                  ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <Icon className="w-4 h-4" />
-                <span>{item.name}</span>
-              </div>
-              {item.badge && (
-                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${item.badgeColor}`}>
-                  {item.badge}
-                </span>
-              )}
-            </Link>
-          );
-        })}
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      isActive
+                        ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Icon className="w-4 h-4 shrink-0" />
+                      <span className="truncate">{item.name}</span>
+                    </div>
+                    {item.badge && (
+                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0 ${item.badgeColor}`}>
+                        {item.badge}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       <div className="p-4 border-t border-slate-800/80 space-y-2">

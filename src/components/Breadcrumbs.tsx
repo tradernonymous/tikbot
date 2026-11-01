@@ -16,6 +16,16 @@ export interface BreadcrumbsProps {
 export function Breadcrumbs({ pathname, searchParams, contextData }: BreadcrumbsProps) {
   const getSection = () => {
     if (pathname.includes('/research')) return { name: 'Research Intelligence', href: '/dashboard/research' };
+    if (pathname.includes('/trends')) return { name: 'Trends', href: '/dashboard/trends' };
+    if (pathname.includes('/hooks')) return { name: 'Hook Lab', href: '/dashboard/hooks' };
+    if (pathname.includes('/competitors')) return { name: 'Competitors', href: '/dashboard/competitors' };
+    if (pathname.includes('/creators')) return { name: 'Creators CRM', href: '/dashboard/creators' };
+    if (pathname.includes('/live')) return { name: 'Live Intel', href: '/dashboard/live' };
+    if (pathname.includes('/calendar')) return { name: 'Calendar', href: '/dashboard/calendar' };
+    if (pathname.includes('/composer')) return { name: 'Composer', href: '/dashboard/composer' };
+    if (pathname.includes('/media')) return { name: 'Media Library', href: '/dashboard/media' };
+    if (pathname.includes('/inbox')) return { name: 'Comment Inbox', href: '/dashboard/inbox' };
+    if (pathname.includes('/reports')) return { name: 'Reports', href: '/dashboard/reports' };
     if (pathname.includes('/accounts')) return { name: 'Farm Accounts', href: '/dashboard/accounts' };
     if (pathname.includes('/campaigns')) return { name: 'Engagement Campaigns', href: '/dashboard/campaigns' };
     if (pathname.includes('/publishing')) return { name: 'Content & Publishing', href: '/dashboard/publishing' };
