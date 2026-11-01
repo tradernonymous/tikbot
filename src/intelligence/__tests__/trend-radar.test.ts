@@ -35,19 +35,15 @@ describe('Trend Radar Intelligence (G6.1)', () => {
   });
 
   it('detects sound lifecycle phase based on velocity and sample size', () => {
-    // @ts-expect-error test before implementation
     const emerging = detectSoundLifecycle(25, 4);
     expect(emerging).toBe('EMERGING');
 
-    // @ts-expect-error test before implementation
     const rising = detectSoundLifecycle(30, 50);
     expect(rising).toBe('RISING');
 
-    // @ts-expect-error test before implementation
     const peak = detectSoundLifecycle(5, 50);
     expect(peak).toBe('PEAK');
 
-    // @ts-expect-error test before implementation
     const declining = detectSoundLifecycle(-10, 50);
     expect(declining).toBe('DECLINING');
   });
