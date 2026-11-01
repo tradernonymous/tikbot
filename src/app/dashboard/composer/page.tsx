@@ -40,12 +40,21 @@ export default function ComposerPage({ initialCaption }: ComposerPageProps) {
       ? (urlPlatform.toUpperCase() as PublishingPlatform)
       : 'TIKTOK';
 
+  const safeDecode = (val: string | null) => {
+    if (!val) return '';
+    try {
+      return decodeURIComponent(val);
+    } catch {
+      return val;
+    }
+  };
+
   const initialText =
     initialCaption ||
     (urlHook
-      ? decodeURIComponent(urlHook)
+      ? safeDecode(urlHook)
       : urlTopic
-      ? `Here's what you need to know about ${decodeURIComponent(urlTopic)}...`
+      ? `Here's what you need to know about ${safeDecode(urlTopic)}...`
       : 'Stop scrolling if you want to scale your FYP reach in 2026.');
 
   const [platform, setPlatform] = useState<PublishingPlatform>(resolvedPlatform);
