@@ -444,3 +444,94 @@ model MetricSample {
   @@index([targetType, targetId, timestamp])
 }
 
+
+model FarmDevicePersona {
+  id                 String            @id @default(cuid())
+  accountId          String            @unique
+  engine             String            @default("CAMOUFOX")
+  screenResolution   String
+  gpuRenderer        String
+  timezone           String
+  locale             String
+  fonts              Json
+  canvasNoiseSeed    String
+  webglNoiseSeed     String
+  userAgent          String
+  ja4TlsFingerprint  String
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  identityLink       FarmIdentityLink?
+}
+
+model FarmIdentityLink {
+  id           String            @id @default(cuid())
+  accountId    String            @unique
+  personaId    String            @unique
+  persona      FarmDevicePersona @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  proxyId      String
+  proxySubnet  String
+  emailSlot    String            @unique
+  phoneSlot    String?           @unique
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([proxySubnet])
+  @@index([proxyId])
+}
+
+model FarmIncidentLog {
+  id         String   @id @default(cuid())
+  accountId  String
+  proxyId    String?
+  type       String
+  severity   String   @default("MEDIUM")
+  details    String
+  timestamp  DateTime @default(now())
+
+  @@index([accountId, timestamp])
+  @@index([proxyId])
+  @@index([type])
+}
+
+model FarmNicheCurriculum {
+  id                       String                       @id @default(cuid())
+  nicheKey                 String                       @unique
+  name                     String
+  hashtags                 Json
+  creators                 Json
+  sounds                   Json
+  targetAlignmentThreshold Float                        @default(70.0)
+  createdAt                DateTime                     @default(now())
+  updatedAt                DateTime                     @updatedAt
+  alignments               FarmAccountNicheAlignment[]
+}
+
+model FarmAccountNicheAlignment {
+  id             String              @id @default(cuid())
+  accountId      String
+  curriculumId   String
+  curriculum     FarmNicheCurriculum @relation(fields: [curriculumId], references: [id], onDelete: Cascade)
+  alignmentScore Float               @default(0.0)
+  lastSampledAt  DateTime            @default(now())
+
+  @@unique([accountId, curriculumId])
+  @@index([alignmentScore])
+}
+
+model FarmBoostOrder {
+  id             String    @id @default(cuid())
+  targetUrl      String
+  targetHandle   String
+  goalTier       String
+  targetReach    Int
+  status         String    @default("PENDING")
+  startedAt      DateTime?
+  completedAt    DateTime?
+  velocityCurve  Json?
+  stats          Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status])
+  @@index([targetHandle])
+}
