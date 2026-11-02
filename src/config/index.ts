@@ -35,6 +35,21 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   const envToParse: Record<string, string | undefined> = { ...env };
   const nodeEnv = envToParse.NODE_ENV || process.env.NODE_ENV || 'development';
 
+  // Support legacy or alternative variable names
+  if (!envToParse.MASTER_ENCRYPTION_KEY && envToParse.APP_SECRET_KEY) {
+    envToParse.MASTER_ENCRYPTION_KEY = envToParse.APP_SECRET_KEY;
+  }
+
+  // Fallback derive INTERNAL_API_SECRET if SESSION_SECRET or MASTER_ENCRYPTION_KEY is present
+  if (!envToParse.INTERNAL_API_SECRET && (envToParse.SESSION_SECRET || envToParse.MASTER_ENCRYPTION_KEY)) {
+    const seed = envToParse.SESSION_SECRET || envToParse.MASTER_ENCRYPTION_KEY;
+    envToParse.INTERNAL_API_SECRET = crypto
+      .createHmac('sha256', seed!)
+      .update('tikbot-internal-api-secret')
+      .digest('hex')
+      .slice(0, 32);
+  }
+
   if (nodeEnv === 'development') {
     // In development, generate ephemeral values with loud warnings if missing
     if (!envToParse.MASTER_ENCRYPTION_KEY) {
