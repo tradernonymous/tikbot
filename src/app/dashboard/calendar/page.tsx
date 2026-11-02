@@ -63,6 +63,7 @@ export default function CalendarPage({
 
   const urlView = searchParams ? searchParams.get('view') : null;
   const urlAccount = searchParams ? searchParams.get('account') : null;
+  const urlMediaId = searchParams ? searchParams.get('mediaId') : null;
 
   const validViews = ['month', 'week', 'day'] as const;
   type ViewType = (typeof validViews)[number];
@@ -186,7 +187,7 @@ export default function CalendarPage({
       key: 'caption',
       header: 'Caption Preview',
       render: (item) => (
-        <span className="text-xs text-slate-300 max-w-xs truncate block">{item.caption}</span>
+        <span className="text-xs text-slate-300 max-w-md truncate block">{item.caption}</span>
       ),
     },
     {

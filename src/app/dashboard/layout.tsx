@@ -1,7 +1,8 @@
 import React from 'react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { verifySessionToken, readSessionTokenFromCookies } from '@/security/auth';
+import { verifySessionToken, readSessionTokenFromCookies, getSessionSecret } from '@/security/auth';
+import { isTokenRevokedSync } from '@/security/session-revocation';
 import { Sidebar } from '@/components/Sidebar';
 import { TopNavbar } from '@/components/TopNavbar';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -25,11 +26,11 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
-  // Verify with SESSION_SECRET directly (same source as src/proxy.ts) so an unrelated
-  // config validation failure can never bounce a valid session between /login and /dashboard.
-  const secret = process.env.SESSION_SECRET;
+  // Verify with getSessionSecret() directly (same source as src/proxy.ts and auth guards)
+  // so an unrelated config validation failure or unset env var never bounces a valid session between /login and /dashboard.
+  const secret = getSessionSecret();
   const verified = secret ? verifySessionToken(sessionToken, secret) : null;
-  if (!verified) {
+  if (!verified || isTokenRevokedSync(sessionToken)) {
     redirect('/login');
   }
 

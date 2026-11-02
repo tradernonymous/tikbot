@@ -33,6 +33,7 @@ import {
   Key,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 
 export default function AccountsPage() {
   const router = useRouter();
@@ -170,6 +171,20 @@ export default function AccountsPage() {
           </button>
         </div>
       )}
+
+      {/* v3-F Farm Accounts Engine Cross-Link Banner */}
+      <div className="bg-indigo-950/30 border border-indigo-800/40 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+        <div className="flex items-center gap-2 text-indigo-300">
+          <span className="font-semibold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300">v3-F Feature</span>
+          <span>Looking for the new Device Persona Factory, Aging Tiers, and Subnet Matrix?</span>
+        </div>
+        <Link
+          href="/dashboard/farm/accounts"
+          className="text-cyan-400 hover:text-cyan-300 font-medium inline-flex items-center gap-1 hover:underline shrink-0"
+        >
+          Open Farm Accounts Engine &rarr;
+        </Link>
+      </div>
 
       {/* Main Tabs (Accounts vs Proxies) */}
       <div className="flex border-b border-slate-800 gap-2">
@@ -326,7 +341,8 @@ export default function AccountsPage() {
                       <td className="py-3 px-4 text-right">
                         <div className="inline-flex items-center gap-1.5">
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setSessionModalAccount(acc);
                               setSessionInput('');
                             }}
@@ -336,14 +352,20 @@ export default function AccountsPage() {
                             <Key className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => handleInspect(acc)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleInspect(acc);
+                            }}
                             className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium transition-all"
                           >
                             Inspect Spec
                           </button>
                           {acc.status === 'ACTIVE' ? (
                             <button
-                              onClick={() => transitionAccountStatus(acc.id, 'COOLDOWN')}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                transitionAccountStatus(acc.id, 'COOLDOWN');
+                              }}
                               className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-amber-400 border border-amber-900/40 text-[10px] font-mono transition-colors"
                               title="Move to cooldown"
                             >
@@ -351,7 +373,10 @@ export default function AccountsPage() {
                             </button>
                           ) : acc.status === 'COOLDOWN' ? (
                             <button
-                              onClick={() => transitionAccountStatus(acc.id, 'ACTIVE')}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                transitionAccountStatus(acc.id, 'ACTIVE');
+                              }}
                               className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-emerald-900/40 text-[10px] font-mono transition-colors"
                               title="Reactivate node"
                             >
@@ -359,7 +384,10 @@ export default function AccountsPage() {
                             </button>
                           ) : null}
                           <button
-                            onClick={() => handleRemoveAccount(acc)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveAccount(acc);
+                            }}
                             className="p-1.5 rounded bg-slate-900 hover:bg-rose-950 text-slate-500 hover:text-rose-400 border border-slate-800 text-[11px] transition-colors"
                             title="Remove account from farm"
                           >

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo, ReactNode } from 'react';
-import { getDevFixtures, FixtureDataset } from '@/fixtures';
+import { type FixtureDataset } from '@/fixtures';
 import { WarmupEngine } from '@/farm/warmup-routine';
 import { AccountLifecycleManager, AccountState } from '@/farm/account-lifecycle';
 import { COMPLIANCE_ACTION_CAPS } from '@/farm/rate-limiter';
@@ -189,6 +189,10 @@ interface OperationsContextType {
   // Settings
   caps: typeof COMPLIANCE_ACTION_CAPS;
   updateCaps: (newCaps: typeof COMPLIANCE_ACTION_CAPS) => void;
+
+  // Network Sync Resilience
+  fetchError: string | null;
+  retryFetchAll: () => void;
 }
 
 const OperationsContext = createContext<OperationsContextType | undefined>(undefined);
@@ -196,171 +200,36 @@ const OperationsContext = createContext<OperationsContextType | undefined>(undef
 const LOCAL_STORAGE_KEY = 'tikbot_operations_state_v1';
 
 export function OperationsProvider({ children }: { children: ReactNode }) {
-  const fixtures = getDevFixtures();
-
   // Initialize Accounts
-  const [accounts, setAccounts] = useState<FarmAccount[]>(() => {
-    return fixtures.accounts.map((acc, idx) => ({
-      ...acc,
-      status: acc.status as AccountState,
-      warmupDay: acc.status === 'WARMING' ? 2 : acc.status === 'ACTIVE' ? 7 : 1,
-      createdAt: `${idx + 1} days ago`,
-      sessionCipher: 'vault_aes256_enc_' + acc.id,
-    }));
-  });
+  const [accounts, setAccounts] = useState<FarmAccount[]>([]);
 
   // Initialize Proxies
-  const [proxies, setProxies] = useState<StickyProxy[]>(fixtures.proxies);
+  const [proxies, setProxies] = useState<StickyProxy[]>([]);
 
   // Initialize Campaigns
-  const [campaigns, setCampaigns] = useState<GovernedCampaign[]>(() => {
-    return [
-      {
-        id: 'camp-jack-50',
-        title: '50 High-Retention Views for @jackprintezy (Video)',
-        targetUrl: 'https://www.tiktok.com/@jackprintezy/video/7634241914350341397',
-        actionType: 'VIEW',
-        targetCount: 50,
-        executedCount: 4,
-        status: 'RUNNING',
-        approvalId: 'appr-jack-50',
-        riskTier: 'LOW',
-        createdAt: 'Just now',
-      },
-      {
-        id: 'camp-jack-33',
-        title: '33 High-Retention Views for @jackprintezy (Photo)',
-        targetUrl: 'https://www.tiktok.com/@jackprintezy/photo/7661970071471803669',
-        actionType: 'VIEW',
-        targetCount: 33,
-        executedCount: 18,
-        status: 'RUNNING',
-        approvalId: 'appr-jack-33',
-        riskTier: 'LOW',
-        createdAt: '5 mins ago',
-      },
-      ...fixtures.campaigns.map((c) => ({
-        ...c,
-        riskTier: c.targetCount > 100 ? ('MEDIUM' as const) : ('LOW' as const),
-        createdAt: 'Today, 08:30 UTC',
-      })),
-    ];
-  });
+  const [campaigns, setCampaigns] = useState<GovernedCampaign[]>([]);
 
   // Initialize Farm Tasks
-  const [farmTasks, setFarmTasks] = useState<ActiveFarmTask[]>([
-    {
-      id: 'task-jack-50',
-      serviceName: 'High-Retention Video View Engine',
-      serviceType: 'VIEW',
-      targetUrl: 'https://www.tiktok.com/@jackprintezy/video/7634241914350341397',
-      executed: 4,
-      target: 50,
-      status: 'RUNNING',
-      assignedNodes: 3,
-      startedAt: 'Just now',
-    },
-    {
-      id: 'task-jack-01',
-      serviceName: 'High-Retention Video View Engine',
-      serviceType: 'VIEW',
-      targetUrl: 'https://www.tiktok.com/@jackprintezy/photo/7661970071471803669',
-      executed: 18,
-      target: 33,
-      status: 'RUNNING',
-      assignedNodes: 3,
-      startedAt: '5 mins ago',
-    },
-    {
-      id: 'task-901',
-      serviceName: 'High-Retention Video View Engine',
-      serviceType: 'VIEW',
-      targetUrl: 'https://www.tiktok.com/@topcreator/video/71829102918',
-      executed: 210,
-      target: 250,
-      status: 'RUNNING',
-      assignedNodes: 12,
-      startedAt: '15 mins ago',
-    },
-  ]);
+  const [farmTasks, setFarmTasks] = useState<ActiveFarmTask[]>([]);
 
   // Initialize Publish Jobs
-  const [publishJobs, setPublishJobs] = useState<PublishJob[]>([
-    {
-      id: 'pub-001',
-      title: '3 copywriting hooks that generate 100k views in 24 hours #marketing #fyp',
-      scheduledAt: 'Today at 14:00 UTC',
-      status: 'PENDING_APPROVAL',
-      account: '@organic_growth_hacker',
-      platform: 'TIKTOK',
-      linkedOutlierHook: 'Stop posting 60-second clips before you watch this 3-second hook framework.',
-    },
-    {
-      id: 'pub-002',
-      title: 'Behind the scenes: Self-hosted Douyin scraper demo #buildinpublic',
-      scheduledAt: 'Tomorrow at 18:00 UTC',
-      status: 'SCHEDULED',
-      account: '@content_spark_daily',
-      platform: 'TIKTOK',
-    },
-  ]);
+  const [publishJobs, setPublishJobs] = useState<PublishJob[]>([]);
 
   // Initialize Media Assets
-  const [mediaAssets, setMediaAssets] = useState<MediaAsset[]>([
-    { id: 'asset-1', title: 'Viral Hook 01 — 3-Second Retention Framework', size: '14.2 MB', duration: '15.4s', format: '9:16', folder: 'Hooks' },
-    { id: 'asset-2', title: 'Product Showcase A — Automated Pipeline Demo', size: '28.5 MB', duration: '32.1s', format: '9:16', folder: 'Demos' },
-    { id: 'asset-3', title: 'Pain Points Teaser — Creator Struggle Teardown', size: '8.9 MB', duration: '18.0s', format: '9:16', folder: 'Teasers' },
-  ]);
+  const [mediaAssets, setMediaAssets] = useState<MediaAsset[]>([]);
 
   // Initialize Researched Outlier Posts from server state
   const [researchedPosts, setResearchedPosts] = useState<ResearchedPost[]>([]);
 
   // Initialize Audit Logs
-  const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([
-    {
-      id: 'audit-001',
-      action: 'SYSTEM_BOOT',
-      actorEmail: 'admin@tikbot.local',
-      resourceId: 'OPERATOR_CONSOLE',
-      ipAddress: '127.0.0.1',
-      createdAt: 'Today, 08:00 UTC',
-      status: 'SUCCESS',
-    },
-    {
-      id: 'audit-002',
-      action: 'APPROVE_CAMPAIGN',
-      actorEmail: 'admin@tikbot.local',
-      resourceId: 'camp-1',
-      ipAddress: '127.0.0.1',
-      createdAt: 'Today, 08:35 UTC',
-      status: 'SUCCESS',
-    },
-  ]);
+  const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
 
   // Notifications
-  const [notifications, setNotifications] = useState<NotificationItem[]>([
-    {
-      id: 'notif-1',
-      title: 'Campaign Approval Required',
-      description: 'Pain Point Discussion Seeders is pending operator authorization.',
-      type: 'WARNING',
-      timestamp: '5m ago',
-      href: '/dashboard/campaigns',
-    },
-    {
-      id: 'notif-2',
-      title: 'Farm Fleet Healthy',
-      description: 'All 3 managed farm identities bound to active sticky proxies.',
-      type: 'SUCCESS',
-      timestamp: '20m ago',
-      href: '/dashboard/accounts',
-    },
-  ]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   // Execution Terminal Logs
   const [terminalLogs, setTerminalLogs] = useState<string[]>([
     '[SYSTEM] Operator Console Initialized in Dark Mode',
-    '[PROXY] 3 Sticky Residential Tunnels Verified Healthy',
     '[QUEUE] Background worker polling ready',
   ]);
 
@@ -373,8 +242,9 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
   // Helper: Append Audit Log & Notification (Bounded circular buffer)
   const recordAudit = (action: string, resourceId: string, status: 'SUCCESS' | 'WARNING' | 'FAILED' = 'SUCCESS', detail?: string) => {
     const timeStr = new Date().toLocaleTimeString();
+    const id = typeof crypto !== 'undefined' && crypto.randomUUID ? `audit-${crypto.randomUUID()}` : `audit-${Date.now()}`;
     const newLog: AuditLogItem = {
-      id: `audit-${Date.now().toString().slice(-5)}`,
+      id,
       action,
       actorEmail: 'admin@tikbot.local',
       resourceId,
@@ -386,9 +256,10 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
 
     if (detail) {
       setTerminalLogs((prev) => [`[${timeStr}] [${action}] ${detail}`, ...prev.slice(0, 59)]);
+      const notifId = typeof crypto !== 'undefined' && crypto.randomUUID ? `notif-${crypto.randomUUID()}` : `notif-${Date.now()}`;
       setNotifications((prev) => [
         {
-          id: `notif-${Date.now().toString().slice(-4)}`,
+          id: notifId,
           title: action,
           description: detail,
           type: status === 'FAILED' ? 'CRITICAL' : status === 'WARNING' ? 'WARNING' : 'INFO',
@@ -399,8 +270,19 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Server-Side State Persistence: Load from API routes on mount (P3)
+  // Server-Side State Persistence: Load from API routes on mount (P3 & 0.6)
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [refreshCounter, setRefreshCounter] = useState(0);
+
+  const retryFetchAll = () => {
+    setFetchError(null);
+    setRefreshCounter((c) => c + 1);
+  };
+
   useEffect(() => {
+    const controller = new AbortController();
+    const { signal } = controller;
+
     // 1. One-time cleanup of legacy localStorage state blob if present
     try {
       if (typeof window !== 'undefined' && localStorage.getItem(LOCAL_STORAGE_KEY)) {
@@ -408,11 +290,19 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
       }
     } catch {}
 
+    const handleFetchErr = (err: any) => {
+      if (err?.name === 'AbortError') return;
+      setFetchError('Operations data synchronization issue. Displaying latest valid local state.');
+    };
+
     // 2. Fetch server-persisted accounts (preserves deletions, never resurrects)
-    fetch('/api/v1/accounts')
-      .then((res) => res.json())
+    fetch('/api/v1/accounts', { signal })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then((data) => {
-        if (data.success && Array.isArray(data.accounts)) {
+        if (data?.success && Array.isArray(data.accounts)) {
           setAccounts(
             data.accounts.map((acc: any) => ({
               ...acc,
@@ -423,23 +313,29 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
           );
         }
       })
-      .catch(() => {});
+      .catch(handleFetchErr);
 
     // 3. Fetch server-persisted proxies
-    fetch('/api/v1/proxies')
-      .then((res) => res.json())
+    fetch('/api/v1/proxies', { signal })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then((data) => {
-        if (data.success && Array.isArray(data.proxies)) {
+        if (data?.success && Array.isArray(data.proxies)) {
           setProxies(data.proxies);
         }
       })
-      .catch(() => {});
+      .catch(handleFetchErr);
 
     // 4. Fetch server-persisted campaigns
-    fetch('/api/v1/campaigns')
-      .then((res) => res.json())
+    fetch('/api/v1/campaigns', { signal })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then((data) => {
-        if (data.success && Array.isArray(data.campaigns)) {
+        if (data?.success && Array.isArray(data.campaigns)) {
           setCampaigns(
             data.campaigns.map((c: any) => ({
               ...c,
@@ -448,48 +344,80 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
           );
         }
       })
-      .catch(() => {});
+      .catch(handleFetchErr);
 
     // 5. Fetch server-persisted audit logs
-    fetch('/api/v1/audit-logs')
-      .then((res) => res.json())
+    fetch('/api/v1/audit-logs', { signal })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then((data) => {
-        if (data.success && Array.isArray(data.logs)) {
+        if (data?.success && Array.isArray(data.logs)) {
           setAuditLogs(
             data.logs.map((l: any) => ({
               id: l.id,
-              timestamp: new Date(l.timestamp).toLocaleTimeString(),
-              action: l.action,
-              target: l.resourceId || l.resourceType,
-              status: 'SUCCESS' as const,
-              details: `${l.action} on ${l.resourceType}`,
+              action: l.action || 'SYSTEM',
+              actorEmail: l.metadata?.actorEmail || 'admin@tikbot.local',
+              resourceId: l.resourceId || l.resourceType || 'SYSTEM',
+              ipAddress: l.ipAddress || '127.0.0.1',
+              createdAt: l.timestamp ? new Date(l.timestamp).toLocaleTimeString() : 'Today',
+              status: (l.metadata?.status as 'SUCCESS' | 'WARNING' | 'FAILED') || 'SUCCESS',
             }))
           );
         }
       })
-      .catch(() => {});
+      .catch(handleFetchErr);
 
     // 6. Fetch server-persisted publishing jobs
-    fetch('/api/v1/publishing/jobs')
-      .then((res) => res.json())
+    fetch('/api/v1/publishing/jobs', { signal })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then((data) => {
-        if (data.success && Array.isArray(data.jobs)) {
+        if (data?.success && Array.isArray(data.jobs)) {
           setPublishJobs(
             data.jobs.map((j: any) => ({
               id: j.id,
-              title: j.caption,
+              title: j.caption || 'Scheduled Post',
               platform: 'TIKTOK' as const,
               status: j.status,
-              accountTarget: j.accountUsername ? `@${j.accountUsername}` : '@account',
-              scheduledFor: j.scheduledAt,
-              videoFile: j.mediaStorageKey || 'clip.mp4',
-              autoHashtags: true,
+              account: j.accountUsername ? (j.accountUsername.startsWith('@') ? j.accountUsername : `@${j.accountUsername}`) : '@account',
+              scheduledAt: j.scheduledAt ? new Date(j.scheduledAt).toLocaleTimeString() : 'Scheduled',
+              linkedOutlierHook: undefined,
             }))
           );
         }
       })
-      .catch(() => {});
-  }, []);
+      .catch(handleFetchErr);
+
+    // 7. Fetch media assets
+    fetch('/api/v1/content/media', { signal })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        if (data && Array.isArray(data.assets)) {
+          setMediaAssets(
+            data.assets.map((a: any) => ({
+              id: a.id,
+              title: a.storageKey,
+              size: `${(a.fileSizeBytes / (1024 * 1024)).toFixed(1)} MB`,
+              duration: a.durationSeconds ? `${a.durationSeconds.toFixed(1)}s` : '15.0s',
+              format: '9:16',
+              folder: (a.tags && a.tags[0]) || 'Hooks',
+            }))
+          );
+        }
+      })
+      .catch(handleFetchErr);
+
+    return () => {
+      controller.abort();
+    };
+  }, [refreshCounter]);
 
   // Sync Kill Switch from server API on mount
   useEffect(() => {
@@ -665,38 +593,11 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
   const addAccount = (username: string, platform: 'TIKTOK' | 'DOUYIN' = 'TIKTOK', cookiesJson?: string) => {
     const cleanUser = username.replace(/^@/, '');
     const healthyProxy = proxies.find((p) => p.status === 'HEALTHY');
-    const newId = `acc-${Date.now().toString().slice(-4)}`;
+    const tempId = typeof crypto !== 'undefined' && crypto.randomUUID ? `acc-${crypto.randomUUID()}` : `acc-${Date.now()}`;
     const hasCookies = Boolean(cookiesJson && cookiesJson.trim().length > 5);
 
-    // Persist to server API (P3)
-    fetch('/api/v1/accounts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: cleanUser,
-        platform,
-        proxyId: healthyProxy ? healthyProxy.id : null,
-      }),
-    }).catch(() => {});
-
-    // Securely encrypt and store session cookies server-side (S8)
-    if (hasCookies && cookiesJson) {
-      fetch('/api/v1/accounts/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          accountId: newId,
-          username: cleanUser,
-          platform,
-          cookiesJson: cookiesJson.trim(),
-        }),
-      }).catch((err) => {
-        console.error('[OperationsContext] Failed to securely upload session:', err);
-      });
-    }
-
     const newAcc: FarmAccount = {
-      id: newId,
+      id: tempId,
       username: cleanUser,
       platform,
       status: 'CREATED',
@@ -706,11 +607,62 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
       proxyId: healthyProxy ? healthyProxy.id : null,
       warmupDay: 1,
       hasCookies,
-      sessionCipher: hasCookies ? `vault_aes256_enc_${newId}` : undefined,
+      sessionCipher: hasCookies ? `vault_aes256_enc_${tempId}` : undefined,
       createdAt: 'Just now',
     };
 
     setAccounts((prev) => [newAcc, ...prev]);
+
+    // Persist to server API and synchronize server-generated ID
+    fetch('/api/v1/accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: cleanUser,
+        platform,
+        proxyId: healthyProxy ? healthyProxy.id : null,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.account) {
+          const serverId = data.account.id;
+          setAccounts((prev) =>
+            prev.map((acc) =>
+              acc.id === tempId
+                ? {
+                    ...acc,
+                    id: serverId,
+                    sessionCipher: hasCookies ? `vault_aes256_enc_${serverId}` : undefined,
+                  }
+                : acc
+            )
+          );
+          recordAudit('ACCOUNT_PROVISIONED', serverId, 'SUCCESS', `Account @${cleanUser} provisioned successfully`);
+
+          if (hasCookies && cookiesJson) {
+            fetch('/api/v1/accounts/session', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                accountId: serverId,
+                username: cleanUser,
+                platform,
+                cookiesJson: cookiesJson.trim(),
+              }),
+            }).catch((err) => {
+              console.error('[OperationsContext] Failed to securely upload session:', err);
+            });
+          }
+        } else {
+          recordAudit('ACCOUNT_PROVISION_FAILED', cleanUser, 'FAILED', data.error || 'Server rejected account creation');
+        }
+      })
+      .catch((err) => {
+        console.error('[OperationsContext] Failed to persist account:', err);
+        recordAudit('ACCOUNT_PROVISION_FAILED', cleanUser, 'FAILED', err?.message || 'Network error');
+      });
+
     recordAudit(
       'REGISTER_FARM_ACCOUNT',
       `@${cleanUser}`,
@@ -827,20 +779,51 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     targetCount: number;
   }): GovernedCampaign => {
     const riskTier = data.targetCount > 250 ? 'HIGH' : data.targetCount > 80 ? 'MEDIUM' : 'LOW';
+    const tempId = typeof crypto !== 'undefined' && crypto.randomUUID ? `camp-${crypto.randomUUID()}` : `camp-${Date.now()}`;
+    const apprId = typeof crypto !== 'undefined' && crypto.randomUUID ? `appr-${crypto.randomUUID()}` : `appr-${Date.now()}`;
     const newCamp: GovernedCampaign = {
-      id: `camp-${Date.now().toString().slice(-4)}`,
+      id: tempId,
       title: data.title,
       targetUrl: data.targetUrl,
       actionType: data.actionType,
       targetCount: data.targetCount,
       executedCount: 0,
       status: 'PENDING_APPROVAL',
-      approvalId: `appr-${Date.now().toString().slice(-4)}`,
+      approvalId: apprId,
       riskTier,
       createdAt: 'Just now',
     };
     setCampaigns((prev) => [newCamp, ...prev]);
-    recordAudit('CREATE_CAMPAIGN', newCamp.title, 'SUCCESS', `Created campaign "${newCamp.title}" (${newCamp.targetCount} ${newCamp.actionType}s)`);
+
+    // Persist to server API and sync database ID
+    fetch('/api/v1/campaigns', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: data.title,
+        targetUrl: data.targetUrl,
+        actionType: data.actionType,
+        targetCount: data.targetCount,
+        status: 'PENDING_APPROVAL',
+      }),
+    })
+      .then((res) => res.json())
+      .then((resData) => {
+        if (resData.success && resData.campaign) {
+          const serverCamp = resData.campaign;
+          setCampaigns((prev) =>
+            prev.map((c) => (c.id === tempId ? { ...c, id: serverCamp.id } : c))
+          );
+          recordAudit('CREATE_CAMPAIGN', serverCamp.id, 'SUCCESS', `Created campaign "${newCamp.title}" (${newCamp.targetCount} ${newCamp.actionType}s)`);
+        } else {
+          recordAudit('CREATE_CAMPAIGN_FAILED', newCamp.title, 'FAILED', resData.error || 'Server rejected campaign');
+        }
+      })
+      .catch((err) => {
+        console.error('[OperationsContext] Failed to persist campaign:', err);
+        recordAudit('CREATE_CAMPAIGN_FAILED', newCamp.title, 'FAILED', err?.message || 'Network error');
+      });
+
     return newCamp;
   };
 
@@ -848,11 +831,19 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     setCampaigns((prev) =>
       prev.map((c) => (c.id === campaignId ? { ...c, status: 'RUNNING' } : c))
     );
+    fetch('/api/v1/campaigns', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: campaignId, status: 'RUNNING' }),
+    }).catch(() => {});
     recordAudit('APPROVE_CAMPAIGN', campaignId, 'SUCCESS', `Authorized campaign ${campaignId} for dispatch`);
   };
 
   const rejectCampaign = (campaignId: string) => {
     setCampaigns((prev) => prev.filter((c) => c.id !== campaignId));
+    fetch(`/api/v1/campaigns?id=${encodeURIComponent(campaignId)}`, {
+      method: 'DELETE',
+    }).catch(() => {});
     recordAudit('REJECT_CAMPAIGN', campaignId, 'WARNING', `Rejected and archived campaign ${campaignId}`);
   };
 
@@ -860,6 +851,11 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     setCampaigns((prev) =>
       prev.map((c) => (c.id === campaignId ? { ...c, status: 'PAUSED' } : c))
     );
+    fetch('/api/v1/campaigns', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: campaignId, status: 'PAUSED' }),
+    }).catch(() => {});
     recordAudit('PAUSE_CAMPAIGN', campaignId, 'WARNING', `Paused campaign ${campaignId}`);
   };
 
@@ -867,6 +863,11 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     setCampaigns((prev) =>
       prev.map((c) => (c.id === campaignId ? { ...c, status: 'RUNNING' } : c))
     );
+    fetch('/api/v1/campaigns', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: campaignId, status: 'RUNNING' }),
+    }).catch(() => {});
     recordAudit('RESUME_CAMPAIGN', campaignId, 'SUCCESS', `Resumed campaign ${campaignId}`);
   };
 
@@ -883,8 +884,9 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     status?: 'RUNNING' | 'QUEUED' | 'COMPLETED' | 'PAUSED' | 'FAILED';
   }) => {
     const taskStatus = data.status || 'RUNNING';
+    const taskId = typeof crypto !== 'undefined' && crypto.randomUUID ? `task-${crypto.randomUUID()}` : `task-${Date.now()}`;
     const newTask: ActiveFarmTask = {
-      id: `task-${Date.now().toString().slice(-4)}`,
+      id: taskId,
       serviceName: data.serviceName,
       serviceType: data.serviceType,
       targetUrl: data.targetUrl,
@@ -934,8 +936,9 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     scheduledAt?: string;
     linkedOutlierHook?: string;
   }): PublishJob => {
+    const pubId = typeof crypto !== 'undefined' && crypto.randomUUID ? `pub-${crypto.randomUUID()}` : `pub-${Date.now()}`;
     const newJob: PublishJob = {
-      id: `pub-${Date.now().toString().slice(-4)}`,
+      id: pubId,
       title: data.title,
       scheduledAt: data.scheduledAt || 'Tomorrow at 14:00 UTC',
       status: 'PENDING_APPROVAL',
@@ -957,6 +960,9 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
 
   const rejectPublishJob = (jobId: string) => {
     setPublishJobs((prev) => prev.filter((j) => j.id !== jobId));
+    fetch(`/api/v1/publishing/jobs?id=${encodeURIComponent(jobId)}`, {
+      method: 'DELETE',
+    }).catch(() => {});
     recordAudit('REJECT_PUBLISH_JOB', jobId, 'WARNING', `Rejected publish slot ${jobId}`);
   };
 
@@ -1045,6 +1051,8 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
       toggleKillSwitch,
       caps,
       updateCaps,
+      fetchError,
+      retryFetchAll,
     }),
     [
       accounts,
@@ -1059,11 +1067,27 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
       terminalLogs,
       killSwitchActive,
       caps,
+      fetchError,
     ]
   );
 
   return (
     <OperationsContext.Provider value={contextValue}>
+      {fetchError && (
+        <div
+          role="alert"
+          className="bg-amber-500/10 border-b border-amber-500/30 px-4 py-2 flex items-center justify-between text-xs text-amber-300"
+        >
+          <span>{fetchError}</span>
+          <button
+            type="button"
+            onClick={retryFetchAll}
+            className="px-2.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-medium transition cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      )}
       {children}
     </OperationsContext.Provider>
   );

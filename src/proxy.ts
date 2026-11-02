@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { verifySessionToken } from '@/security/auth';
+import { verifySessionToken, getSessionSecret } from '@/security/auth';
+import { isTokenRevokedSync } from '@/security/session-revocation';
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -22,8 +23,15 @@ export function proxy(request: NextRequest) {
     request.cookies.get('__Host-tikbot_session')?.value ||
     request.cookies.get('tikbot_session')?.value;
 
-  const secret = process.env.SESSION_SECRET || 'ephemeral-session-secret-for-login-min-32-chars';
-  const session = token ? verifySessionToken(token, secret) : null;
+  let session = null;
+  try {
+    const secret = getSessionSecret();
+    if (token && !isTokenRevokedSync(token)) {
+      session = verifySessionToken(token, secret);
+    }
+  } catch {
+    session = null;
+  }
 
   // If visiting /login while already having a valid session, redirect to /dashboard
   if (pathname === '/login') {

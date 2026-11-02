@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
+import { isTokenRevokedSync } from './session-revocation';
 
 export interface OperatorSession {
   userId: string;
@@ -131,6 +132,59 @@ export interface RequireSessionResult {
 }
 
 /**
+ * Returns the active session secret from environment variables.
+ * Fails startup fast when missing or shorter than 32 characters.
+ * Never writes fallback values into process.env.
+ */
+export function getSessionSecret(): string {
+  const secret = process.env.SESSION_SECRET?.trim();
+  if (!secret || secret.length < 32) {
+    throw new Error('SESSION_SECRET environment variable is missing or shorter than 32 characters');
+  }
+  return secret;
+}
+
+/**
+ * Detects whether the request was served over HTTPS directly or via a trusted reverse proxy.
+ */
+export function detectIsHttps(request: Request | NextRequest): boolean {
+  const forwardedProto = request.headers?.get('x-forwarded-proto');
+  if (forwardedProto) {
+    return forwardedProto.split(',')[0].trim().toLowerCase() === 'https';
+  }
+  try {
+    const url = new URL(request.url);
+    return url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Returns cookie configuration matching the connection transport (HTTPS vs HTTP)
+ * preventing browser rejection of __Host- cookies on local or unencrypted setups.
+ */
+export function getSessionCookieOptions(isHttps = false): {
+  name: string;
+  secure: boolean;
+  httpOnly: boolean;
+  sameSite: 'lax' | 'strict';
+  path: string;
+  maxAge: number;
+} {
+  const isProd = process.env.NODE_ENV === 'production';
+  const useHostPrefix = isProd && isHttps;
+  return {
+    name: useHostPrefix ? '__Host-tikbot_session' : 'tikbot_session',
+    secure: useHostPrefix,
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 8 * 3600,
+  };
+}
+
+/**
  * Shared authentication & authorization guard for API route handlers (S4, S10, S11).
  * Validates session token signature and expiration, executes CSRF check on mutations,
  * and issues sliding refresh token when remaining validity is under 2 hours.
@@ -167,7 +221,8 @@ export function requireSession(
     token =
       request.cookies.get('__Host-tikbot_session')?.value ||
       request.cookies.get('tikbot_session')?.value;
-  } else {
+  }
+  if (!token) {
     const cookieHeader = request.headers.get('cookie') || '';
     const match = cookieHeader.match(/(?:^|;\s*)(?:__Host-)?tikbot_session=([^;]+)/);
     if (match) {
@@ -182,11 +237,15 @@ export function requireSession(
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
-  const secret = explicitSecret || process.env.SESSION_SECRET || 'ephemeral-session-secret-for-login-min-32-chars';
+  const secret = explicitSecret || getSessionSecret();
   const payload = verifySessionToken(token, secret);
 
   if (!payload) {
     return NextResponse.json({ error: 'Invalid or expired session token' }, { status: 401 });
+  }
+
+  if (isTokenRevokedSync(token)) {
+    return NextResponse.json({ error: 'Session has been revoked' }, { status: 401 });
   }
 
   // Sliding refresh when less than 2 hours remain (S11)
@@ -208,24 +267,29 @@ export function requireSession(
 /**
  * Attaches the hardened session cookie to a NextResponse (S11).
  */
-export function attachSessionCookie(response: NextResponse, token: string): void {
-  const isProd = process.env.NODE_ENV === 'production';
-  const cookieName = isProd ? '__Host-tikbot_session' : 'tikbot_session';
-  response.cookies.set(cookieName, token, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: 'strict',
-    path: '/',
-    maxAge: 8 * 3600,
+export function attachSessionCookie(response: NextResponse, token: string, isHttps = false): void {
+  const opts = getSessionCookieOptions(isHttps);
+  response.cookies.set({
+    name: opts.name,
+    value: token,
+    httpOnly: opts.httpOnly,
+    secure: opts.secure,
+    sameSite: opts.sameSite,
+    path: opts.path,
+    maxAge: opts.maxAge,
   });
 }
 
 /**
  * If the session was refreshed via sliding window, attaches the new cookie to the response.
  */
-export function handleSessionRefresh(auth: RequireSessionResult, response: NextResponse): NextResponse {
+export function handleSessionRefresh(
+  auth: RequireSessionResult,
+  response: NextResponse,
+  isHttps = false
+): NextResponse {
   if (auth.refreshedToken) {
-    attachSessionCookie(response, auth.refreshedToken);
+    attachSessionCookie(response, auth.refreshedToken, isHttps);
   }
   return response;
 }

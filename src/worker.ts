@@ -13,6 +13,10 @@ import {
   executeFarmLike,
   executeFarmComment,
   executeFarmLive,
+  executeFarmShare,
+  executeFarmSave,
+  executeFarmFollow,
+  executeFarmFypPush,
 } from './farm/farm-actions';
 
 import { globalJobEventBus } from './queue/job-events';
@@ -69,10 +73,47 @@ export function setFarmInteractionDriver(driver: FarmInteractionDriver | null): 
         driver
       );
     });
+
+    jobHandlerRegistry.set('farm.share', async (payload) => {
+      const targetUrl = String(payload.url || payload.targetUrl || '');
+      if (!targetUrl) throw new Error('farm.share requires url');
+      const accountId = String(payload.accountId || 'anonymous');
+      return await executeFarmShare({ accountId, url: targetUrl, proxy: payload.proxy }, driver);
+    });
+
+    jobHandlerRegistry.set('farm.save', async (payload) => {
+      const targetUrl = String(payload.url || payload.targetUrl || '');
+      if (!targetUrl) throw new Error('farm.save requires url');
+      const accountId = String(payload.accountId || 'anonymous');
+      return await executeFarmSave({ accountId, url: targetUrl, proxy: payload.proxy }, driver);
+    });
+
+    jobHandlerRegistry.set('farm.follow', async (payload) => {
+      const targetHandle = String(payload.targetHandle || payload.handle || '');
+      if (!targetHandle) throw new Error('farm.follow requires targetHandle');
+      const accountId = String(payload.accountId || 'anonymous');
+      return await executeFarmFollow({ accountId, targetHandle, proxy: payload.proxy }, driver);
+    });
+
+    jobHandlerRegistry.set('farm.fyp_push', async (payload) => {
+      const targetUrl = String(payload.url || payload.targetUrl || '');
+      if (!targetUrl) throw new Error('farm.fyp_push requires url');
+      const accountId = String(payload.accountId || 'anonymous');
+      const targetHandle = payload.targetHandle ? String(payload.targetHandle) : undefined;
+      const steps = Array.isArray(payload.steps) ? (payload.steps as string[]) : undefined;
+      return await executeFarmFypPush(
+        { accountId, url: targetUrl, targetHandle, steps, proxy: payload.proxy },
+        driver
+      );
+    });
   } else {
     jobHandlerRegistry.delete('farm.like');
     jobHandlerRegistry.delete('farm.comment');
     jobHandlerRegistry.delete('farm.live');
+    jobHandlerRegistry.delete('farm.share');
+    jobHandlerRegistry.delete('farm.save');
+    jobHandlerRegistry.delete('farm.follow');
+    jobHandlerRegistry.delete('farm.fyp_push');
   }
 }
 

@@ -350,14 +350,20 @@ export default function CampaignsPage() {
                           {camp.status === 'PENDING_APPROVAL' ? (
                             <div className="inline-flex gap-1.5">
                               <button
-                                onClick={() => handleApprove(camp.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleApprove(camp.id);
+                                }}
                                 className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 text-[10px] font-semibold transition-all"
                               >
                                 <Check className="w-3 h-3" />
                                 <span>Approve</span>
                               </button>
                               <button
-                                onClick={() => handleReject(camp.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleReject(camp.id);
+                                }}
                                 className="flex items-center gap-1 px-2.5 py-1 rounded bg-rose-950/80 hover:bg-rose-900 border border-rose-700/60 text-rose-300 text-[10px] font-semibold transition-all"
                               >
                                 <X className="w-3 h-3" />
@@ -367,7 +373,10 @@ export default function CampaignsPage() {
                           ) : camp.status === 'RUNNING' ? (
                             <div className="inline-flex gap-1.5">
                               <button
-                                onClick={() => pauseCampaign(camp.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  pauseCampaign(camp.id);
+                                }}
                                 className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 text-[10px] font-mono flex items-center gap-1"
                               >
                                 <Pause className="w-3 h-3" />
@@ -377,7 +386,10 @@ export default function CampaignsPage() {
                           ) : camp.status === 'PAUSED' ? (
                             <div className="inline-flex gap-1.5">
                               <button
-                                onClick={() => resumeCampaign(camp.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  resumeCampaign(camp.id);
+                                }}
                                 className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 text-[10px] font-mono flex items-center gap-1"
                               >
                                 <Play className="w-3 h-3" />

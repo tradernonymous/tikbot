@@ -33,27 +33,34 @@ export function createCohort(input: {
   return cohort;
 }
 
+let defaultCohortsSeeded = false;
+
+export function seedDefaultCohorts(): void {
+  if (defaultCohortsSeeded) return;
+  defaultCohortsSeeded = true;
+  createCohort({
+    name: 'Crypto-Fresh',
+    niche: 'crypto',
+    minTier: 'FRESH',
+    accountIds: ['farm-acc-1', 'farm-acc-2'],
+  });
+  createCohort({
+    name: 'Beauty-Prime-US',
+    niche: 'beauty',
+    minTier: 'PRIME',
+    accountIds: ['farm-acc-3', 'farm-acc-4'],
+  });
+  createCohort({
+    name: 'Tech-Mature-Global',
+    niche: 'technology',
+    minTier: 'MATURE',
+    accountIds: ['farm-acc-5'],
+  });
+}
+
 export function getCohorts(): FarmCohort[] {
-  if (cohortsStore.size === 0) {
-    // Seed default baseline cohorts if store is empty
-    createCohort({
-      name: 'Crypto-Fresh',
-      niche: 'crypto',
-      minTier: 'FRESH',
-      accountIds: ['farm-acc-1', 'farm-acc-2'],
-    });
-    createCohort({
-      name: 'Beauty-Prime-US',
-      niche: 'beauty',
-      minTier: 'PRIME',
-      accountIds: ['farm-acc-3', 'farm-acc-4'],
-    });
-    createCohort({
-      name: 'Tech-Mature-Global',
-      niche: 'technology',
-      minTier: 'MATURE',
-      accountIds: ['farm-acc-5'],
-    });
+  if (!defaultCohortsSeeded && cohortsStore.size === 0) {
+    seedDefaultCohorts();
   }
   return Array.from(cohortsStore.values());
 }
@@ -108,4 +115,5 @@ export function filterHealthyCohortAccounts(
 
 export function clearCohorts(): void {
   cohortsStore.clear();
+  defaultCohortsSeeded = true;
 }

@@ -8,8 +8,16 @@ export const SPLIT_PAGE_OPTIONS = [
   { label: 'Composer', url: '/dashboard/composer' },
   { label: 'Comment Inbox', url: '/dashboard/inbox' },
   { label: 'Calendar', url: '/dashboard/calendar' },
-  { label: 'Research', url: '/dashboard/research' },
+  { label: 'Research Intelligence', url: '/dashboard/research' },
   { label: 'Trends Radar', url: '/dashboard/trends' },
+  { label: 'Engagement Campaigns', url: '/dashboard/campaigns' },
+  { label: 'Farm Services & Launch', url: '/dashboard/panel' },
+  { label: 'Farm Services (New)', url: '/dashboard/farm/services' },
+  { label: 'Farm Accounts Fleet', url: '/dashboard/accounts' },
+  { label: 'Farm Accounts Engine', url: '/dashboard/farm/accounts' },
+  { label: 'Performance Reports', url: '/dashboard/reports' },
+  { label: 'Media Library', url: '/dashboard/media' },
+  { label: 'Compliance & Audit', url: '/dashboard/compliance' },
 ];
 
 export function SplitViewPane() {

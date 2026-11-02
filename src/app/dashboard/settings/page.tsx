@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useOperations } from '@/context/OperationsContext';
 import {
   Settings,
@@ -19,8 +20,18 @@ import {
 } from 'lucide-react';
 
 export default function SettingsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const rawTab = searchParams.get('tab');
+  const validTabs = ['general', 'security', 'network', 'caps', 'smm'] as const;
+  const initialTab = validTabs.includes(rawTab as any) ? (rawTab as (typeof validTabs)[number]) : 'general';
   const { caps, updateCaps } = useOperations();
-  const [activeTab, setActiveTab] = useState<'general' | 'security' | 'network' | 'caps' | 'smm'>('smm');
+  const [activeTab, setActiveTabState] = useState<(typeof validTabs)[number]>(initialTab);
+
+  const handleTabChange = (tab: (typeof validTabs)[number]) => {
+    setActiveTabState(tab);
+    router.replace(`/dashboard/settings?tab=${tab}`, { scroll: false });
+  };
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [sidecarHealth, setSidecarHealth] = useState<string | null>(null);
 
@@ -181,7 +192,7 @@ export default function SettingsPage() {
       {/* Tabs */}
       <div className="flex border-b border-slate-800 gap-2">
         <button
-          onClick={() => setActiveTab('general')}
+          onClick={() => handleTabChange('general')}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
             activeTab === 'general'
               ? 'border-cyan-500 text-cyan-400'
@@ -192,7 +203,7 @@ export default function SettingsPage() {
           <span>General & Platform</span>
         </button>
         <button
-          onClick={() => setActiveTab('smm')}
+          onClick={() => handleTabChange('smm')}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
             activeTab === 'smm'
               ? 'border-cyan-500 text-cyan-400'
@@ -203,7 +214,7 @@ export default function SettingsPage() {
           <span>SMM Provider (Paid API)</span>
         </button>
         <button
-          onClick={() => setActiveTab('security')}
+          onClick={() => handleTabChange('security')}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
             activeTab === 'security'
               ? 'border-cyan-500 text-cyan-400'
@@ -214,7 +225,7 @@ export default function SettingsPage() {
           <span>Security & Keys</span>
         </button>
         <button
-          onClick={() => setActiveTab('network')}
+          onClick={() => handleTabChange('network')}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
             activeTab === 'network'
               ? 'border-cyan-500 text-cyan-400'
@@ -225,7 +236,7 @@ export default function SettingsPage() {
           <span>Sidecars & Network</span>
         </button>
         <button
-          onClick={() => setActiveTab('caps')}
+          onClick={() => handleTabChange('caps')}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
             activeTab === 'caps'
               ? 'border-cyan-500 text-cyan-400'
@@ -374,7 +385,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={handleSyncServices}
-                  disabled={smmSyncing || !smmApiKey}
+                  disabled={smmSyncing || (!smmKeyConfigured && !smmApiKey.trim())}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-mono transition-colors disabled:opacity-50"
                   title="Verify & pull available live services"
                 >
@@ -384,7 +395,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={handleCheckSmmBalance}
-                  disabled={smmChecking || !smmApiKey}
+                  disabled={smmChecking || (!smmKeyConfigured && !smmApiKey.trim())}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 text-xs font-mono transition-colors disabled:opacity-50"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${smmChecking ? 'animate-spin' : ''}`} />

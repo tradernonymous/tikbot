@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
-import { verifyPassword, createSessionToken } from '@/security/auth';
+import { verifyPassword, createSessionToken, getSessionSecret, attachSessionCookie } from '@/security/auth';
 import { checkLoginRateLimit, recordLoginFailure, recordLoginSuccess } from '@/security/login-rate-limiter';
 import { getConfig } from '@/config';
 
@@ -35,13 +35,10 @@ export async function POST(request: NextRequest) {
     let config: any;
     try {
       config = getConfig();
-    } catch {
-      config = {
-        NODE_ENV: process.env.NODE_ENV || 'development',
-        ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
-        OPERATOR_PASSWORD_HASH: process.env.OPERATOR_PASSWORD_HASH,
-        SESSION_SECRET: process.env.SESSION_SECRET || 'ephemeral-session-secret-for-login-min-32-chars',
-      };
+    } catch (configErr: any) {
+      const msg = configErr?.message || '';
+      console.error('[CONFIG ERROR] Server configuration error:', msg);
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
     }
 
     const adminPassword = process.env.ADMIN_PASSWORD || config.ADMIN_PASSWORD;
@@ -82,7 +79,7 @@ export async function POST(request: NextRequest) {
 
     recordLoginSuccess(ip);
 
-    const sessionSecret = config.SESSION_SECRET || process.env.SESSION_SECRET || 'ephemeral-session-secret-for-login-min-32-chars';
+    const sessionSecret = getSessionSecret();
     const sessionToken = createSessionToken(
       {
         userId: 'admin-operator',
@@ -93,8 +90,10 @@ export async function POST(request: NextRequest) {
       8 * 60 * 60 * 1000 // 8 hours
     );
 
-    const isProd = config.NODE_ENV === 'production' || process.env.NODE_ENV === 'production';
-    const cookieName = isProd ? '__Host-tikbot_session' : 'tikbot_session';
+    const proto =
+      request.headers.get('x-forwarded-proto') ||
+      (request.url.startsWith('https:') ? 'https' : 'http');
+    const isHttps = proto === 'https';
 
     const response = NextResponse.json({
       success: true,
@@ -105,15 +104,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    response.cookies.set({
-      name: cookieName,
-      value: sessionToken,
-      httpOnly: true,
-      secure: isProd,
-      sameSite: 'strict',
-      maxAge: 8 * 60 * 60,
-      path: '/',
-    });
+    attachSessionCookie(response, sessionToken, isHttps);
 
     return response;
   } catch (err) {

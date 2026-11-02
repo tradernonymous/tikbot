@@ -41,10 +41,12 @@ vi.mock('@/lib/prisma', () => ({
 }));
 
 describe('Integrated System Verification — Upgraded Security & Persistence Flow', () => {
-  const masterKey = '0123456789abcdef0123456789abcdef';
+  const masterKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
   const sessionSecret = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
   beforeEach(() => {
+    process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/tikbot';
+    process.env.INTERNAL_API_SECRET = 'internal-api-secret-16-chars';
     process.env.MASTER_ENCRYPTION_KEY = masterKey;
     process.env.SESSION_SECRET = sessionSecret;
     process.env.ADMIN_PASSWORD = 'CorrectSecureOperatorPassword123!';

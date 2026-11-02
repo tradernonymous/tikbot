@@ -9,6 +9,10 @@ describe('Auth Login Route (S2, S9, S11)', () => {
     resetLoginRateLimiter();
     delete process.env.ADMIN_PASSWORD;
     delete process.env.DASHBOARD_PASSWORD;
+    process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/tikbot';
+    process.env.MASTER_ENCRYPTION_KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+    process.env.SESSION_SECRET = 'super-secret-session-key-minimum-32-chars-long';
+    process.env.INTERNAL_API_SECRET = 'super-internal-api-secret-16-chars';
   });
 
   function makeRequest(body: any, ip = '127.0.0.1'): NextRequest {
@@ -59,7 +63,7 @@ describe('Auth Login Route (S2, S9, S11)', () => {
     expect(setCookie).toBeDefined();
     expect(setCookie).toContain('tikbot_session=');
     expect(setCookie?.toLowerCase()).toContain('httponly');
-    expect(setCookie?.toLowerCase()).toContain('samesite=strict');
+    expect(setCookie?.toLowerCase()).toContain('samesite=lax');
   });
 
   it('verifies scrypt OPERATOR_PASSWORD_HASH when ADMIN_PASSWORD is not set', async () => {

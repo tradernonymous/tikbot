@@ -100,7 +100,8 @@ export function NotificationCenter({
     return item.type === activeTab;
   });
 
-  const handleItemClick = async (notif: NotificationRecord) => {
+  const handleItemClick = async (notif: NotificationRecord, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     if (onMarkRead) {
       onMarkRead(notif.id);
     } else {
@@ -109,7 +110,20 @@ export function NotificationCenter({
     setItems((prev) =>
       prev.map((i) => (i.id === notif.id ? { ...i, readAt: new Date().toISOString() } : i))
     );
-    setCounts((prev) => ({ ...prev, total: Math.max(0, prev.total - 1) }));
+    setCounts((prev) => {
+      const isApproval = notif.type === 'APPROVAL';
+      const isIncident = notif.type === 'INCIDENT';
+      const isResearch = notif.type === 'RESEARCH';
+      const isSystem = notif.type === 'SYSTEM';
+      return {
+        ...prev,
+        total: Math.max(0, prev.total - 1),
+        approvals: isApproval ? Math.max(0, prev.approvals - 1) : prev.approvals,
+        incidents: isIncident ? Math.max(0, prev.incidents - 1) : prev.incidents,
+        research: isResearch ? Math.max(0, prev.research - 1) : prev.research,
+        system: isSystem ? Math.max(0, prev.system - 1) : prev.system,
+      };
+    });
     onClose();
   };
 

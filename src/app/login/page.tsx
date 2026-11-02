@@ -4,6 +4,32 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Lock, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
 
+/**
+ * Strict open-redirect guard: allows only single-leading-slash internal relative paths.
+ * Blocks //, /\, backslashes, schemes, and encoded variants (%2f, %5c).
+ * Always falls back to /dashboard.
+ */
+export function sanitizeRedirectPath(from: string | null | undefined): string {
+  if (!from || typeof from !== 'string') return '/dashboard';
+  // Reject if it contains backslashes or encoded slashes/backslashes
+  if (
+    from.includes('\\') ||
+    from.toLowerCase().includes('%2f') ||
+    from.toLowerCase().includes('%5c')
+  ) {
+    return '/dashboard';
+  }
+  // Must start with exactly one '/' and not followed by another '/' or '\'
+  if (!from.startsWith('/') || from.startsWith('//') || from.startsWith('/\\')) {
+    return '/dashboard';
+  }
+  // Reject external URL schemes (e.g. javascript:, https:, etc.)
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(from)) {
+    return '/dashboard';
+  }
+  return from;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [password, setPassword] = useState('');
@@ -27,7 +53,14 @@ export default function LoginPage() {
         throw new Error(data.error || 'Authentication failed');
       }
 
-      router.push('/dashboard');
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const from = params.get('from');
+        const destination = sanitizeRedirectPath(from);
+        window.location.assign(destination);
+      } else {
+        router.push('/dashboard');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invalid credentials');
     } finally {

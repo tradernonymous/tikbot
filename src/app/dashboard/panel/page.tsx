@@ -27,6 +27,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { AccessibleModal } from '@/components/AccessibleModal';
 import { SectionErrorBoundary } from '@/components/SectionErrorBoundary';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 
 interface FarmService {
   id: string;
@@ -256,6 +257,20 @@ export default function FarmServicesPage() {
           <ShieldCheck className="w-4 h-4 text-emerald-400" />
           <span>Operator Safe Mode: ACTIVE</span>
         </div>
+      </div>
+
+      {/* v3-F Farm Boost Engine Cross-Link Banner */}
+      <div className="bg-indigo-950/30 border border-indigo-800/40 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+        <div className="flex items-center gap-2 text-indigo-300">
+          <span className="font-semibold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300">v3-F Feature</span>
+          <span>Looking for the new FYP Push Engine, Multi-Step Launch Wizard, and Plausibility Preflight?</span>
+        </div>
+        <Link
+          href="/dashboard/farm/services"
+          className="text-cyan-400 hover:text-cyan-300 font-medium inline-flex items-center gap-1 hover:underline shrink-0"
+        >
+          Open Farm Services & Boost &rarr;
+        </Link>
       </div>
 
       {killSwitchActive && (

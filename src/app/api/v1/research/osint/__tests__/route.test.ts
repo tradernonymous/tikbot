@@ -13,6 +13,16 @@ describe('Research OSINT Route (P7, S4)', () => {
       { userId: 'admin', email: 'admin@tikbot.local', role: 'OPERATOR' },
       secret
     );
+    vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes('tiktok.com') || url.includes('youtube.com')) {
+        return {
+          status: 200,
+          text: async () => '<html><head><title>Charli (@charli) TikTok</title></head><body>OK</body></html>',
+        } as any;
+      }
+      return { status: 404, text: async () => 'not found' } as any;
+    });
   });
 
   function makeRequest(body: any, token?: string): NextRequest {

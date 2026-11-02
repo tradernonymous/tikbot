@@ -15,6 +15,8 @@ export interface BreadcrumbsProps {
 
 export function Breadcrumbs({ pathname, searchParams, contextData }: BreadcrumbsProps) {
   const getSection = () => {
+    if (pathname.includes('/farm/accounts')) return { name: 'Farm Accounts Engine', href: '/dashboard/farm/accounts' };
+    if (pathname.includes('/farm/services')) return { name: 'Farm Services & Boost', href: '/dashboard/farm/services' };
     if (pathname.includes('/research')) return { name: 'Research Intelligence', href: '/dashboard/research' };
     if (pathname.includes('/trends')) return { name: 'Trends', href: '/dashboard/trends' };
     if (pathname.includes('/hooks')) return { name: 'Hook Lab', href: '/dashboard/hooks' };

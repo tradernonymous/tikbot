@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useOperations } from '@/context/OperationsContext';
 import { FarmLoadSimulator, SimulationResult } from '@/observability/load-sim';
 import {
@@ -30,8 +31,11 @@ export default function CompliancePage() {
       ? `${((bannedAccounts / accounts.length) * 100).toFixed(1)}%`
       : '—';
 
+  const searchParams = useSearchParams();
+  const accountQuery = searchParams.get('account') || '';
+
   const [filterAction, setFilterAction] = useState('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(accountQuery);
   const [rotationStatus, setRotationStatus] = useState<string | null>(null);
 
   // Load simulator state

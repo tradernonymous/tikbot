@@ -33,6 +33,7 @@ export default function ComposerPage({ initialCaption }: ComposerPageProps) {
   const urlHook = searchParams ? searchParams.get('hook') : null;
   const urlMediaId = searchParams ? searchParams.get('mediaId') : null;
   const urlTopic = searchParams ? searchParams.get('topic') : null;
+  const urlTag = searchParams ? searchParams.get('tag') : null;
 
   const validPlatforms: PublishingPlatform[] = ['TIKTOK', 'INSTAGRAM_REELS', 'YOUTUBE_SHORTS'];
   const resolvedPlatform: PublishingPlatform =
@@ -68,6 +69,7 @@ export default function ComposerPage({ initialCaption }: ComposerPageProps) {
   );
 
   const [hashtagSuggestions, setHashtagSuggestions] = useState<Array<{ tag: string; score: number }>>([
+    ...(urlTag ? [{ tag: urlTag.startsWith('#') ? urlTag : `#${urlTag}`, score: 100 }] : []),
     { tag: '#ecommerce', score: 92 },
     { tag: '#dropshipping', score: 88 },
     { tag: '#viral', score: 85 },

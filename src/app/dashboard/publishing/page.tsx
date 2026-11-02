@@ -328,14 +328,20 @@ export default function PublishingPage() {
                       {job.status === 'PENDING_APPROVAL' ? (
                         <div className="inline-flex gap-2">
                           <button
-                            onClick={() => handleApprove(job.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleApprove(job.id);
+                            }}
                             className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 text-[10px] font-semibold transition-all"
                           >
                             <Check className="w-3 h-3" />
                             <span>Approve</span>
                           </button>
                           <button
-                            onClick={() => handleReject(job.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReject(job.id);
+                            }}
                             className="flex items-center gap-1 px-2.5 py-1 rounded bg-rose-950/80 hover:bg-rose-900 border border-rose-700/60 text-rose-300 text-[10px] font-semibold transition-all"
                           >
                             <X className="w-3 h-3" />

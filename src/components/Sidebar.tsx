@@ -24,6 +24,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { useOperations } from '@/context/OperationsContext';
+import { useNotifications } from '@/context/NotificationsContext';
 
 export interface SidebarCounts {
   total: number;
@@ -36,35 +37,8 @@ export interface SidebarCounts {
 export function Sidebar({ serverCounts }: { serverCounts?: SidebarCounts }) {
   const pathname = usePathname();
   const { campaigns, farmTasks, publishJobs, accounts, researchedPosts } = useOperations();
-  const [counts, setCounts] = useState<SidebarCounts>(
-    serverCounts || {
-      total: 0,
-      approvals: 0,
-      incidents: 0,
-      research: 0,
-      system: 0,
-    }
-  );
-
-  useEffect(() => {
-    if (serverCounts) {
-      setCounts(serverCounts);
-      return;
-    }
-    const fetchCounts = () => {
-      fetch('/api/v1/notifications/counts')
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success && data.counts) {
-            setCounts(data.counts);
-          }
-        })
-        .catch(() => {});
-    };
-    fetchCounts();
-    const interval = setInterval(fetchCounts, 15000);
-    return () => clearInterval(interval);
-  }, [serverCounts]);
+  const { counts: sharedCounts } = useNotifications();
+  const counts = serverCounts || sharedCounts;
 
   const runningTasks = farmTasks.filter((t) => t.status === 'RUNNING').length;
   const activeAccounts = accounts.filter((a) => a.status === 'ACTIVE').length;

@@ -25,6 +25,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useOperations } from '@/context/OperationsContext';
 import { useUi } from '@/context/UiContext';
+import { useNotifications } from '@/context/NotificationsContext';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { CommandPalette, CommandPaletteItem } from '@/components/CommandPalette';
@@ -55,23 +56,7 @@ export function TopNavbar() {
   const [showQuickActions, setShowQuickActions] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false);
-  const [unreadCount, setUnreadCount] = useState<number>(0);
-
-  useEffect(() => {
-    const fetchCounts = () => {
-      fetch('/api/v1/notifications/counts')
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success && data.counts) {
-            setUnreadCount(data.counts.total);
-          }
-        })
-        .catch(() => {});
-    };
-    fetchCounts();
-    const interval = setInterval(fetchCounts, 15000);
-    return () => clearInterval(interval);
-  }, []);
+  const { unreadCount, markAllAsRead } = useNotifications();
 
   // Keyboard shortcuts (S2.7): Cmd+K, ?, Cmd+Z, and g+<key> jumps
   useEffect(() => {
@@ -131,6 +116,9 @@ export function TopNavbar() {
             case 'o':
               router.push('/dashboard');
               break;
+            case 'e':
+              router.push('/dashboard/research');
+              break;
             case 't':
               router.push('/dashboard/trends');
               break;
@@ -141,6 +129,7 @@ export function TopNavbar() {
               router.push('/dashboard/inbox');
               break;
             case 'c':
+            case 'd':
               router.push('/dashboard/calendar');
               break;
             case 'p':
@@ -154,6 +143,36 @@ export function TopNavbar() {
               break;
             case 'r':
               router.push('/dashboard/reports');
+              break;
+            case 'k':
+              router.push('/dashboard/campaigns');
+              break;
+            case 'l':
+              router.push('/dashboard/panel');
+              break;
+            case 'u':
+              router.push('/dashboard/compliance');
+              break;
+            case 's':
+              router.push('/dashboard/settings');
+              break;
+            case 'f':
+              router.push('/dashboard/farm/accounts');
+              break;
+            case 'v':
+              router.push('/dashboard/farm/services');
+              break;
+            case 'q':
+              router.push('/dashboard/creators');
+              break;
+            case 'x':
+              router.push('/dashboard/competitors');
+              break;
+            case 'w':
+              router.push('/dashboard/live');
+              break;
+            case 'b':
+              router.push('/dashboard/publishing');
               break;
           }
         }
@@ -183,10 +202,22 @@ export function TopNavbar() {
   }
 
   const paletteItems: CommandPaletteItem[] = [
-    // Pages
+    // Pages — Complete 20-Destination Suite (1.1)
     { id: 'page-overview', title: 'Dashboard Overview', category: 'page', href: '/dashboard' },
     { id: 'page-research', title: 'Research Intelligence', category: 'page', href: '/dashboard/research' },
+    { id: 'page-trends', title: 'Trends Radar', category: 'page', href: '/dashboard/trends' },
+    { id: 'page-hooks', title: 'Hook Lab & Pattern Library', category: 'page', href: '/dashboard/hooks' },
+    { id: 'page-competitors', title: 'Competitor Intelligence', category: 'page', href: '/dashboard/competitors' },
+    { id: 'page-creators', title: 'Creators CRM & Vetting', category: 'page', href: '/dashboard/creators' },
+    { id: 'page-live', title: 'Live Stream Monitor', category: 'page', href: '/dashboard/live' },
+    { id: 'page-calendar', title: 'Publishing Calendar', category: 'page', href: '/dashboard/calendar' },
+    { id: 'page-composer', title: 'Content Composer', category: 'page', href: '/dashboard/composer' },
+    { id: 'page-media', title: 'Media Asset Vault', category: 'page', href: '/dashboard/media' },
+    { id: 'page-inbox', title: 'Community & Comment Inbox', category: 'page', href: '/dashboard/inbox' },
+    { id: 'page-reports', title: 'Performance Analytics & Reports', category: 'page', href: '/dashboard/reports' },
     { id: 'page-accounts', title: 'Farm Accounts Fleet', category: 'page', href: '/dashboard/accounts' },
+    { id: 'page-farm-accounts', title: 'Farm Accounts Engine', category: 'page', href: '/dashboard/farm/accounts' },
+    { id: 'page-farm-services', title: 'Farm Services & Boost Launcher', category: 'page', href: '/dashboard/farm/services' },
     { id: 'page-campaigns', title: 'Engagement Campaigns', category: 'page', href: '/dashboard/campaigns' },
     { id: 'page-publishing', title: 'Content & Publishing', category: 'page', href: '/dashboard/publishing' },
     { id: 'page-panel', title: 'Farm Services & Launch', category: 'page', href: '/dashboard/panel' },
@@ -392,7 +423,7 @@ export function TopNavbar() {
               isOpen={showNotifications}
               onClose={() => {
                 setShowNotifications(false);
-                setUnreadCount(0);
+                markAllAsRead();
               }}
             />
           </div>

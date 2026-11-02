@@ -44,6 +44,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     if (!envToParse.SESSION_SECRET) {
       console.warn('[SECURITY WARNING] SESSION_SECRET missing in development. Generating ephemeral secret.');
       envToParse.SESSION_SECRET = crypto.randomBytes(32).toString('hex');
+      if (!process.env.SESSION_SECRET) {
+        process.env.SESSION_SECRET = envToParse.SESSION_SECRET;
+      }
     }
     if (!envToParse.INTERNAL_API_SECRET) {
       console.warn('[SECURITY WARNING] INTERNAL_API_SECRET missing in development. Generating ephemeral secret.');
