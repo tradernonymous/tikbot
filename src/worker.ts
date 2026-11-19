@@ -18,6 +18,7 @@ import {
   executeFarmFollow,
   executeFarmFypPush,
 } from './farm/farm-actions';
+import { StealthFarmDriver } from './farm/interaction-driver';
 
 import { globalJobEventBus } from './queue/job-events';
 
@@ -318,6 +319,9 @@ export function registerDefaultJobHandlers(): void {
 
 // Initial registration of default handlers
 registerDefaultJobHandlers();
+
+// R3.3 — default real execution driver (stealth-browser stealth sessions).
+setFarmInteractionDriver(new StealthFarmDriver());
 
 let inMemoryWorkerPaused = false;
 const workerHeartbeats = new Map<string, Date>();
