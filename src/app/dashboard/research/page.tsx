@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { COMPLIANCE_ACTION_CAPS } from '@/farm/rate-limiter';
 
 export default function ResearchPage() {
   const router = useRouter();
@@ -326,6 +327,7 @@ export default function ResearchPage() {
               <input
                 type="text"
                 required
+                aria-label="TikTok or Douyin video URL to analyze"
                 placeholder="Paste any TikTok or Douyin URL (e.g., https://www.tiktok.com/@topcreator/video/71829102918)..."
                 value={analyzingUrl}
                 onChange={(e) => setAnalyzingUrl(e.target.value)}
@@ -397,6 +399,7 @@ export default function ResearchPage() {
                     href={analysisResult.downloadUrl}
                     target="_blank"
                     rel="noopener noreferrer"
+                    aria-label="Download MP4 without watermark"
                     className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium transition-all"
                   >
                     <Download className="w-3 h-3" />
@@ -458,6 +461,7 @@ export default function ResearchPage() {
             </label>
             <textarea
               rows={5}
+              aria-label="Pasted TikTok comments (one per line)"
               value={vocCommentsInput}
               onChange={(e) => setVocCommentsInput(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
@@ -531,6 +535,7 @@ export default function ResearchPage() {
             <input
               type="text"
               required
+              aria-label="Creator handle to probe (e.g., @topcreator)"
               placeholder="Enter creator handle (e.g., topcreator or mrbeast)..."
               value={osintHandle}
               onChange={(e) => setOsintHandle(e.target.value)}
