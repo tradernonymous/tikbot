@@ -27,6 +27,7 @@ import { useOperations } from '@/context/OperationsContext';
 import { useUi } from '@/context/UiContext';
 import { useNotifications } from '@/context/NotificationsContext';
 import { NotificationCenter } from '@/components/NotificationCenter';
+import { EntityDrawer } from '@/components/EntityDrawer';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { CommandPalette, CommandPaletteItem } from '@/components/CommandPalette';
 import { ContextCarriedChip } from '@/components/ContextCarriedChip';
@@ -47,7 +48,7 @@ export function TopNavbar() {
     publishJobs,
     researchedPosts,
   } = useOperations();
-  const { splitViewOpen, openSplitView, closeSplitView } = useUi();
+  const { splitViewOpen, openSplitView, closeSplitView, drawerOpen, selectedEntity, closeDrawer } = useUi();
 
   const [loading, setLoading] = useState<boolean>(false);
   const [showSearchModal, setShowSearchModal] = useState<boolean>(false);
@@ -470,6 +471,14 @@ export function TopNavbar() {
       <ShortcutCheatSheetModal
         isOpen={showShortcutsModal}
         onClose={() => setShowShortcutsModal(false)}
+      />
+
+      {/* F1.7: Shared entity drawer (opened via openDrawer + ?focus= deep links) */}
+      <EntityDrawer
+        isOpen={drawerOpen}
+        onClose={closeDrawer}
+        entityType={(selectedEntity as any)?.entityType || 'account'}
+        data={selectedEntity as Record<string, any> | null}
       />
     </>
   );

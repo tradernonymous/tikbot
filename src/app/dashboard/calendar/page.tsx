@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useOpenFocusedEntity } from '@/hooks/useEntityFocus';
 import Link from 'next/link';
 import {
   Calendar as CalendarIcon,
@@ -76,6 +77,9 @@ export default function CalendarPage({
   const [view, setView] = useState<ViewType>(resolvedView);
   const [selectedAccount, setSelectedAccount] = useState<string>(urlAccount || 'ALL');
   const [jobs, setJobs] = useState<CalendarJobRecord[]>(initialJobs || []);
+
+  // F1.6/F1.7: ?focus= opens the shared entity drawer
+  useOpenFocusedEntity(jobs, 'account');
   const [conflicts, setConflicts] = useState<ConflictRecord[]>(initialConflicts || []);
   const [heatmap, setHeatmap] = useState<HeatmapPoint[]>(
     initialHeatmap || [

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useOpenFocusedEntity } from '@/hooks/useEntityFocus';
 import Link from 'next/link';
 import {
   Video,
@@ -53,6 +54,9 @@ export default function MediaPage({ initialAssets }: MediaPageProps) {
   const [assets, setAssets] = useState<MediaAssetRecord[]>(initialAssets || []);
   const [loading, setLoading] = useState<boolean>(!initialAssets);
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
+
+  // F1.6/F1.7: ?focus= opens the shared entity drawer
+  useOpenFocusedEntity(assets, 'account');
   const [newKey, setNewKey] = useState<string>('');
   const [newTag, setNewTag] = useState<string>('ugc');
 

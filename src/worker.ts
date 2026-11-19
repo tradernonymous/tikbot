@@ -350,6 +350,29 @@ export async function recordWorkerHeartbeat(id: string): Promise<void> {
   }
 }
 
+/** Find all workers whose last persisted heartbeat is older than the stale window (R7.2). */
+const STALE_WORKER_MS = 60_000;
+
+export async function getStaleWorkers(): Promise<{ workerId: string; lastHeartbeat: Date }[]> {
+  try {
+    const { prisma } = await import('@/lib/prisma');
+    const rows = await prisma.systemSetting.findMany({
+      where: { key: { startsWith: 'WORKER_HEARTBEAT_' } },
+    });
+    const stale: { workerId: string; lastHeartbeat: Date }[] = [];
+    for (const row of rows) {
+      const workerId = row.key.slice('WORKER_HEARTBEAT_'.length);
+      const lastHeartbeat = new Date(row.value);
+      if (workerId && !Number.isNaN(lastHeartbeat.getTime()) && Date.now() - lastHeartbeat.getTime() > STALE_WORKER_MS) {
+        stale.push({ workerId, lastHeartbeat });
+      }
+    }
+    return stale;
+  } catch {
+    return [];
+  }
+}
+
 export async function getLastWorkerHeartbeat(id: string): Promise<Date | null> {
   const mem = workerHeartbeats.get(id);
   if (mem) return mem;
@@ -479,7 +502,25 @@ export async function runWorkerLoop(storageAdapter?: QueueStorageAdapter) {
 
   console.log(`[Worker ${workerId}] Started background worker engine.`);
 
+  let lastStaleCheck = 0;
+
   while (isRunning) {
+    // B3: heartbeat every tick so the stale-worker monitor (R7.2) can see us.
+    await recordWorkerHeartbeat(workerId);
+
+    // R7.2: periodically emit stale-worker notifications for dead workers.
+    if (Date.now() - lastStaleCheck > 10_000) {
+      lastStaleCheck = Date.now();
+      try {
+        const staleWorkers = (await getStaleWorkers()).filter((w) => w.workerId !== workerId);
+        for (const w of staleWorkers) {
+          await globalNotificationService.emitWorkerStale(w.workerId, w.lastHeartbeat).catch(() => {});
+        }
+      } catch {
+        // monitoring must never break the loop
+      }
+    }
+
     const killSwitch = await getPersistedKillSwitch();
     if (killSwitch.active) {
       console.warn(`[Worker ${workerId}] Kill Switch is active: ${killSwitch.reason}. Pausing for 5s...`);

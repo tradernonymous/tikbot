@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Metric } from '@/components/Metric';
 import { EmptyState } from '@/components/EmptyState';
 import { getServiceCatalog } from '@/farm/service-catalog';
+import { useOpenFocusedEntity } from '@/hooks/useEntityFocus';
 import { getCohorts } from '@/farm/cohort-manager';
 import { listOrders } from '@/farm/order-queue';
 import { deserializeWizardFromUrl } from '@/farm/launch-wizard';
@@ -34,6 +35,9 @@ export default async function FarmServicesPage({ searchParams }: PageProps) {
   const orders = listOrders();
   const activeOrders = orders.filter((o) => o.status === 'RUNNING' || o.status === 'PAUSED');
   const historicalOrders = orders.filter((o) => o.status !== 'RUNNING' && o.status !== 'PAUSED');
+
+  // F1.6/F1.7: ?focus= opens the shared entity drawer
+  useOpenFocusedEntity(orders, 'account');
 
   // Build query string for deserialization
   const wizardUrlQuery = new URLSearchParams(params as Record<string, string>).toString();

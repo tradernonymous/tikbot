@@ -23,7 +23,7 @@ export interface UiContextType {
 
 const SPLIT_STORAGE_KEY = 'tikbot_split_view_config';
 
-const UiContext = createContext<UiContextType | undefined>(undefined);
+export const UiContext = createContext<UiContextType | undefined>(undefined);
 
 export function UiProvider({
   children,

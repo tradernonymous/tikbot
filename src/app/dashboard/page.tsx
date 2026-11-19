@@ -7,6 +7,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionErrorBoundary } from '@/components/SectionErrorBoundary';
 import { useOperations } from '@/context/OperationsContext';
+import { useOpenFocusedEntity } from '@/hooks/useEntityFocus';
 import {
   Users,
   Flame,
@@ -39,11 +40,15 @@ export default function DashboardOverview() {
     rejectPublishJob,
     farmTasks,
     researchedPosts,
+    auditLogs,
     terminalLogs,
     killSwitchActive,
   } = useOperations();
 
   const [showLogs, setShowLogs] = useState(true);
+
+  // F1.6/F1.7: ?focus= opens the shared entity drawer
+  useOpenFocusedEntity([...accounts, ...campaigns, ...publishJobs, ...farmTasks, ...researchedPosts, ...auditLogs], 'account');
 
   const totalAccounts = accounts.length;
   const activeAccounts = accounts.filter((a) => a.status === 'ACTIVE').length;

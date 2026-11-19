@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useOpenFocusedEntity } from '@/hooks/useEntityFocus';
 import Link from 'next/link';
 import {
   Inbox,
@@ -77,6 +78,9 @@ export default function InboxPage({ initialItems, initialIdeas }: InboxPageProps
   const [loading, setLoading] = useState<boolean>(!initialItems && !initialIdeas);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [escalatedIds, setEscalatedIds] = useState<Set<string>>(new Set());
+
+  // F1.6/F1.7: ?focus= opens the shared entity drawer
+  useOpenFocusedEntity([...items, ...ideas], 'account');
 
   useEffect(() => {
     if (initialItems && initialIdeas) return;

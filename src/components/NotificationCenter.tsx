@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
   Bell,
@@ -13,6 +13,17 @@ import {
 } from 'lucide-react';
 
 export type NotificationTab = 'ALL' | 'APPROVAL' | 'INCIDENT' | 'RESEARCH' | 'SYSTEM';
+
+const SEVERITY_ICON: Record<string, React.ElementType> = {
+  CRITICAL: AlertCircle,
+  WARNING: AlertTriangle,
+  SUCCESS: CheckCircle2,
+  INFO: Info,
+};
+
+function severityIcon(severity: string) {
+  return SEVERITY_ICON[severity] || Info;
+}
 
 export interface NotificationRecord {
   id: string;
@@ -57,6 +68,9 @@ export function NotificationCenter({
   const [counts, setCounts] = useState<NotificationCounts>(
     initialCounts || { total: 0, approvals: 0, incidents: 0, research: 0, system: 0 }
   );
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const focusRef = useRef<HTMLDivElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (initialNotifications) {
@@ -99,6 +113,7 @@ export function NotificationCenter({
     if (activeTab === 'ALL') return true;
     return item.type === activeTab;
   });
+  const clampedFocusedIndex = Math.min(focusedIndex, Math.max(0, filteredItems.length - 1));
 
   const handleItemClick = async (notif: NotificationRecord, e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -137,11 +152,61 @@ export function NotificationCenter({
     setCounts({ total: 0, approvals: 0, incidents: 0, research: 0, system: 0 });
   };
 
+  // F1.4: mark everything unread as read the moment the panel opens (deep links)
+  useEffect(() => {
+    if (!isOpen) return;
+    const unread = items.filter((i) => !i.readAt);
+    if (unread.length === 0) return;
+    if (onMarkRead) {
+      unread.forEach((n) => onMarkRead(n.id));
+    } else {
+      unread.forEach((n) => fetch(`/api/v1/notifications/${n.id}/read`, { method: 'POST' }).catch(() => {}));
+    }
+    setItems((prev) => prev.map((i) => ({ ...i, readAt: new Date().toISOString() })));
+    setCounts((prev) => ({ ...prev, total: 0, approvals: 0, incidents: 0, research: 0, system: 0 }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  // Focus management: return focus when closing
+  useEffect(() => {
+    if (isOpen) {
+      previousFocusRef.current = document.activeElement as HTMLElement | null;
+      setTimeout(() => focusRef.current?.focus(), 0);
+    } else {
+      previousFocusRef.current?.focus?.();
+      previousFocusRef.current = null;
+      setFocusedIndex(0);
+    }
+  }, [isOpen]);
+
+  // Keyboard nav: arrow keys move focus, Enter opens, Escape closes
+  const handleDialogKeyDown = (e: React.KeyboardEvent) => {
+    if (!filteredItems.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setFocusedIndex((i) => Math.min(i + 1, filteredItems.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setFocusedIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const target = filteredItems[clampedFocusedIndex];
+      if (target) handleItemClick(target);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      onClose();
+    }
+  };
+
   return (
     <div
+      ref={focusRef}
       role="dialog"
       aria-label="Notification Center"
-      className="absolute right-0 mt-2 w-96 max-w-[calc(100vw-2rem)] rounded-xl bg-slate-900 border border-slate-800 shadow-2xl z-50 overflow-hidden flex flex-col font-sans"
+      aria-modal="true"
+      tabIndex={-1}
+      onKeyDown={handleDialogKeyDown}
+      className="absolute right-0 mt-2 w-96 max-w-[calc(100vw-2rem)] rounded-xl bg-slate-900 border border-slate-800 shadow-2xl z-50 overflow-hidden flex flex-col font-sans outline-none"
     >
       {/* Header */}
       <div className="p-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
@@ -206,33 +271,33 @@ export function NotificationCenter({
         ))}
       </div>
 
-      {/* Item List */}
-      <div className="divide-y divide-slate-800/60 max-h-80 overflow-y-auto">
+      {/* Item List (F1.4: listbox with keyboard navigation) */}
+      <div
+        role="listbox"
+        aria-label="Notifications"
+        className="divide-y divide-slate-800/60 max-h-80 overflow-y-auto"
+      >
         {filteredItems.length === 0 ? (
           <div className="py-8 text-center text-slate-500 text-xs font-mono">
             No notifications in this view
           </div>
         ) : (
-          filteredItems.map((notif) => {
+          filteredItems.map((notif, index) => {
             const isUnread = !notif.readAt;
+            const isFocused = index === clampedFocusedIndex;
             const content = (
               <div
-                className={`p-3 text-xs transition-colors hover:bg-slate-800/50 cursor-pointer ${
+                className={`p-3 text-xs transition-colors cursor-pointer ${
                   isUnread ? 'bg-cyan-950/15' : 'bg-transparent'
-                }`}
+                } ${isFocused ? 'ring-inset ring-1 ring-cyan-500 bg-slate-800/40' : ''}`}
                 onClick={() => handleItemClick(notif)}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-1.5">
-                    {notif.severity === 'CRITICAL' ? (
-                      <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                    ) : notif.severity === 'WARNING' ? (
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    ) : notif.severity === 'SUCCESS' ? (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    ) : (
-                      <Info className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                    )}
+                    {(() => {
+                      const Icon = severityIcon(notif.severity);
+                      return <Icon className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />;
+                    })()}
                     <span
                       className={`font-semibold tracking-tight ${
                         isUnread ? 'text-white' : 'text-slate-300'
@@ -260,10 +325,14 @@ export function NotificationCenter({
 
             return notif.href ? (
               <Link key={notif.id} href={notif.href} onClick={() => handleItemClick(notif)}>
-                {content}
+                <div role="option" aria-selected={isFocused}>
+                  {content}
+                </div>
               </Link>
             ) : (
-              <div key={notif.id}>{content}</div>
+              <div key={notif.id} role="option" aria-selected={isFocused}>
+                {content}
+              </div>
             );
           })
         )}
