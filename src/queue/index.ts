@@ -67,7 +67,9 @@ export function isTerminalJobError(error: unknown): boolean {
     lower.includes('terminal') ||
     lower.includes('account banned') ||
     lower.includes('unauthorized') ||
-    lower.includes('credentials not configured')
+    lower.includes('credentials not configured') ||
+    lower.includes('authenticated session') ||
+    lower.includes('session required')
   ) {
     return true;
   }

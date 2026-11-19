@@ -10,6 +10,15 @@ vi.mock('@/lib/prisma', () => ({
       findUnique: vi.fn().mockResolvedValue(null),
       upsert: vi.fn().mockResolvedValue({}),
     },
+    platformAccount: {
+      findUnique: vi.fn((args: { where?: { id?: string } }) => {
+        const id = args?.where?.id;
+        // Only acc-real-2 has a vaulted session (honest session requirement)
+        return Promise.resolve(
+          id === 'acc-real-2' ? { id, encryptedCookies: 'enc-cookie-bytes' } : null
+        );
+      }),
+    },
   },
 }));
 
@@ -82,5 +91,29 @@ describe('R0.2 Truth Pass — Content Publisher Explicit Driver Requirement', ()
 
     const updatedJob = await storage.getJob(job.id);
     expect(updatedJob?.status).toBe('COMPLETED');
+  });
+
+  it('marks publish.upload job as FAILED when the account has no vaulted session', async () => {
+    const storage = new InMemoryQueueStorage();
+    const queue = new JobQueueEngine(storage);
+
+    setUploaderDriver(async (req) => ({
+      success: true,
+      publishedVideoId: `real-${req.accountId}`,
+      url: `https://www.tiktok.com/@${req.accountId}/video/real`,
+    }));
+
+    const job = await queue.enqueue('publish.upload', {
+      accountId: 'acc-real-1', // no session in the vault
+      videoUrl: '/var/media/no-session.mp4',
+      caption: 'Should fail without session',
+    });
+
+    const processed = await processNextJob(queue, 'worker-pub-test-3');
+    expect(processed).toBe(true);
+
+    const updatedJob = await storage.getJob(job.id);
+    expect(['FAILED', 'DEAD_LETTER']).toContain(updatedJob?.status);
+    expect(updatedJob?.lastError).toContain('session');
   });
 });

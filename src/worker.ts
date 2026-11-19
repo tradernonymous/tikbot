@@ -158,16 +158,30 @@ export function registerDefaultJobHandlers(): void {
   jobHandlerRegistry.set('publish.upload', async (payload) => {
     const videoUrl = String(payload.videoUrl || payload.mediaUrl || '');
     const caption = String(payload.caption || '');
+    const accountId = String(payload.accountId || 'system-creator');
     if (!videoUrl) throw new Error('publish.upload requires videoUrl');
     if (!configuredUploaderDriver) {
       throw new PublisherNotConfiguredError();
     }
+
+    // Honest session check: the account must have an encrypted session in the
+    // vault (B1). Drivers that do not need sessions are not required to set
+    // hasValidSession to true here because no fake path exists.
+    let hasValidSession = false;
+    try {
+      const { prisma } = await import('@/lib/prisma');
+      const account = await prisma.platformAccount.findUnique({ where: { id: accountId } });
+      hasValidSession = Boolean(account?.encryptedCookies);
+    } catch {
+      hasValidSession = false;
+    }
+
     const publisher = new ContentPublisher({ uploaderDriver: configuredUploaderDriver });
     return await publisher.publishVideo({
-      accountId: String(payload.accountId || 'system-creator'),
+      accountId,
       mediaPath: videoUrl,
       caption,
-      hasValidSession: true,
+      hasValidSession,
     });
   });
 
@@ -426,6 +440,13 @@ export async function processNextJob(queue: JobQueueEngine, workerId: string): P
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     await globalNotificationService.emitTaskFailure(job.id, errorMsg).catch(() => {});
+    if (job.name.startsWith('research.')) {
+      await globalNotificationService.emitResearchJobFailure(job.id, errorMsg).catch(() => {});
+    }
+    if (job.name.startsWith('farm.') && /checkpoint|challenge|challanged|\bbann?ed\b/i.test(errorMsg)) {
+      const bannerAccountId = job.payload.accountId ? String(job.payload.accountId) : 'unknown';
+      await globalNotificationService.emitBanDetected(bannerAccountId, errorMsg).catch(() => {});
+    }
     await queue.failJob(job.id, errorMsg);
     globalJobEventBus.emitJobEvent({
       type: 'JOB_FAILED',

@@ -542,53 +542,6 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
     };
   }, [killSwitchActive]);
 
-  // Background Task Ticker (Internal Farm & Campaigns simulation only - disabled in production per P7)
-  useEffect(() => {
-    if (killSwitchActive || process.env.NODE_ENV === 'production') return;
-
-    const interval = setInterval(() => {
-      // 1. Progress running INTERNAL farm tasks only (SMM tasks are handled by real poller above)
-      setFarmTasks((prevTasks) => {
-        let changed = false;
-        const updated = prevTasks.map((task) => {
-          if (task.executionMode !== 'SMM_PROVIDER' && task.status === 'RUNNING' && task.executed < task.target) {
-            changed = true;
-            const inc = Math.min(task.target - task.executed, Math.floor(Math.random() * 3) + 1);
-            const nextExecuted = task.executed + inc;
-            return {
-              ...task,
-              executed: nextExecuted,
-              status: nextExecuted >= task.target ? ('COMPLETED' as const) : ('RUNNING' as const),
-            };
-          }
-          return task;
-        });
-        return changed ? updated : prevTasks;
-      });
-
-      // 2. Progress approved campaigns
-      setCampaigns((prevCamps) => {
-        let changed = false;
-        const updated = prevCamps.map((camp) => {
-          if ((camp.status === 'RUNNING' || camp.status === 'APPROVED') && camp.executedCount < camp.targetCount) {
-            changed = true;
-            const inc = Math.min(camp.targetCount - camp.executedCount, Math.floor(Math.random() * 2) + 1);
-            const nextCount = camp.executedCount + inc;
-            return {
-              ...camp,
-              status: nextCount >= camp.targetCount ? ('COMPLETED' as const) : ('RUNNING' as const),
-              executedCount: nextCount,
-            };
-          }
-          return camp;
-        });
-        return changed ? updated : prevCamps;
-      });
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, [killSwitchActive]);
-
   // Account Actions
   const addAccount = (username: string, platform: 'TIKTOK' | 'DOUYIN' = 'TIKTOK', cookiesJson?: string) => {
     const cleanUser = username.replace(/^@/, '');

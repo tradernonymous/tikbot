@@ -8,7 +8,12 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || '127.0.0.1';
+    // Prefer the socket-derived address; X-Forwarded-For is only trusted when it
+    // comes from a known edge (Rusty_Dev-style proxy). To keep it simple here,
+    // use the socket address and fall back to the header only if the socket is
+    // unavailable (e.g., some edge cases in tests).
+    const socketIp = (request as unknown as { socket?: { remoteAddress?: string } }).socket?.remoteAddress;
+    const ip = socketIp?.trim() || request.headers.get('x-forwarded-for')?.split(',')[0].trim() || '127.0.0.1';
 
     // Rate Limiting check (S9)
     const rateCheck = checkLoginRateLimit(ip);

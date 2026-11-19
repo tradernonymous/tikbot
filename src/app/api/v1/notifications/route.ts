@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
     const notifications = await prisma.notification.findMany({
       where,
       take: limit + 1,
-      skip: cursor ? 1 : 0,
+      skip: 0,
       cursor: cursor ? { id: cursor } : undefined,
       orderBy: { createdAt: 'desc' },
     });
