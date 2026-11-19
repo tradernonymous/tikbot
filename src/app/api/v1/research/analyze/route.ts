@@ -72,6 +72,12 @@ export async function POST(req: NextRequest) {
       outlierScore,
     });
 
+    // R2.6: persist outlier score against stored baselines (creator sibling posts)
+    const { applyBaselineOutlierScore } = await import('@/repositories/outlier-scoring');
+    if (saved) {
+      await applyBaselineOutlierScore(saved.id);
+    }
+
     const response = NextResponse.json({
       success: true,
       result,

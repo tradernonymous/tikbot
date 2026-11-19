@@ -272,6 +272,10 @@ export function registerDefaultJobHandlers(): void {
       },
     });
 
+    // R2.6: persist outlier score against stored baselines (creator sibling posts)
+    const { applyBaselineOutlierScore } = await import('@/repositories/outlier-scoring');
+    await applyBaselineOutlierScore(post.id);
+
     return {
       success: true,
       creatorId: creator.id,
@@ -537,6 +541,14 @@ export async function runWorkerLoop(storageAdapter?: QueueStorageAdapter) {
     } catch (err) {
       console.error(`[Worker ${workerId}] Error in loop:`, err);
       await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+
+    // R2.4/R2.5: research.watch + metrics.collect scheduler tick
+    try {
+      const { runDueScheduledJobs } = await import('@/scheduler/research-scheduler');
+      await runDueScheduledJobs(queue);
+    } catch (err) {
+      console.error(`[Worker ${workerId}] Scheduler tick error:`, err);
     }
   }
 
