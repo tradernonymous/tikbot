@@ -12,30 +12,13 @@ describe('R0.1 Truth Pass — Worker Handler Configuration', () => {
     registerDefaultJobHandlers();
   });
 
-  it('rejects farm.like with HandlerNotConfiguredError by default', async () => {
-    await expect(
-      executeJobHandler('farm.like', { url: 'https://tiktok.com/@creator/video/1' })
-    ).rejects.toThrow(HandlerNotConfiguredError);
-  });
-
-  it('rejects farm.comment with HandlerNotConfiguredError by default', async () => {
-    await expect(
-      executeJobHandler('farm.comment', { url: 'https://tiktok.com/@creator/video/1', comment: 'nice' })
-    ).rejects.toThrow(HandlerNotConfiguredError);
-  });
-
-  it('rejects farm.live with HandlerNotConfiguredError by default', async () => {
-    await expect(
-      executeJobHandler('farm.live', { streamUrl: 'https://tiktok.com/@creator/live' })
-    ).rejects.toThrow(HandlerNotConfiguredError);
-  });
-
-  it('has no default success:true path for farm actions without an injected driver', async () => {
-    for (const jobType of ['farm.like', 'farm.comment', 'farm.live']) {
-      await expect(executeJobHandler(jobType, { url: 'https://tiktok.com/@u/v/1' })).rejects.toThrow(
-        HandlerNotConfiguredError
-      );
+  it('registers real farm handlers by default (no fake success path)', () => {
+    // R0.1 + R3.2: farm.like/comment/live/share/save/follow/fyp_push are real
+    // drivers (StealthFarmDriver) — never a no-op success:true handler.
+    for (const jobType of ['farm.like', 'farm.comment', 'farm.live', 'farm.share', 'farm.save', 'farm.follow', 'farm.fyp_push']) {
+      expect(jobHandlerRegistry.has(jobType)).toBe(true);
     }
+    expect(jobHandlerRegistry.has('farm.view')).toBe(true);
   });
 
   it('allows registering a real driver which executes successfully', async () => {

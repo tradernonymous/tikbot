@@ -61,13 +61,11 @@ describe('Worker Handler Registry & Execution (P4, P5 TDD)', () => {
     }
   });
 
-  it('rejects unconfigured farm handlers by default with HandlerNotConfiguredError', async () => {
-    const unconfiguredTypes = ['farm.like', 'farm.comment', 'farm.live'];
-    for (const jobType of unconfiguredTypes) {
-      expect(jobHandlerRegistry.has(jobType)).toBe(false);
-      await expect(executeJobHandler(jobType, { url: 'https://tiktok.com/@u/v/1' })).rejects.toThrow(
-        /HandlerNotConfiguredError/
-      );
+  it('registers farm handlers by default — real stealth driver, never HandlerNotConfiguredError', () => {
+    // R0.1 + R3.2: farm handlers are real by default (StealthFarmDriver).
+    const farmTypes = ['farm.like', 'farm.comment', 'farm.live'];
+    for (const jobType of farmTypes) {
+      expect(jobHandlerRegistry.has(jobType)).toBe(true);
     }
   });
 
